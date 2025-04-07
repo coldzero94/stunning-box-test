@@ -15,7 +15,7 @@
    - 상세한 평가 결과 리포트
 
 3. QLoRA 파인튜닝
-   - Gemma-3/Qwen-2.5-12b 모델 지원
+   - Mistral-7B 모델 지원
    - 4비트 양자화 학습
    - TensorBoard 모니터링
 

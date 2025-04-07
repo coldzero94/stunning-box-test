@@ -105,7 +105,7 @@ def compute_metrics(eval_preds):
 
 def main():
     # 설정
-    model_name = "EleutherAI/polyglot-ko-12.8b"  # 또는 다른 한국어 LLM
+    model_name = "mistralai/Mistral-7B-v0.1"  # 오픈 모델로 변경
     data_dir = "training_data"
     output_dir = "qlora_output"
     

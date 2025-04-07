@@ -73,7 +73,7 @@ def main():
     # 설정
     dataset_path = "parallel_corpus_openai.csv"
     output_path = "translation_evaluation.csv"
-    model_name = "google/gemma-2b"  # 또는 다른 모델
+    model_name = "mistralai/Mistral-7B-v0.1"  # 오픈 모델로 변경
     
     # 데이터셋 로드
     print("데이터셋 로드 중...")
