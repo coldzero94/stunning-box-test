@@ -105,7 +105,7 @@ def compute_metrics(eval_preds):
 
 def main():
     # 설정
-    model_name = "mistralai/Mistral-7B-v0.1"  # 오픈 모델로 변경
+    model_name = "meta-llama/Llama-2-7b-chat-hf"  # 완전히 오픈 소스인 모델로 변경
     data_dir = "training_data"
     output_dir = "qlora_output"
     
