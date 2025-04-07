@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "coby-test-book"
+version = "0.1.0"
+description = ""
+authors = ["coby@vessl.ai"]
+package-mode = false
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.13"
+pymupdf = "^1.24.0"
+pandas = "^2.2.1"
+openai = "^1.14.1"
+transformers = "^4.38.2"
+datasets = "^2.18.0"
+torch = "^2.2.1"
+accelerate = "^0.27.2"
+bitsandbytes = "^0.42.0"
+peft = "^0.9.0"
+tensorboard = "^2.16.2"
+scipy = "^1.12.0"
+sentence-transformers = "^2.5.1"
+tqdm = "^4.66.2"
+scikit-learn = "^1.4.1"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
