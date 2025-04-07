@@ -11,6 +11,11 @@ from peft import LoraConfig, prepare_model_for_kbit_training, get_peft_model
 import torch
 from pathlib import Path
 import numpy as np
+import os
+from dotenv import load_dotenv
+
+# 환경 변수 로드
+load_dotenv()
 
 def load_and_process_data(data_dir: str):
     """데이터셋을 로드하고 전처리합니다."""
@@ -105,9 +110,17 @@ def compute_metrics(eval_preds):
 
 def main():
     # 설정
-    model_name = "meta-llama/Llama-2-7b-chat-hf"  # 완전히 오픈 소스인 모델로 변경
+    model_name = "gpt-4o-mini"  # OpenAI 모델로 변경
     data_dir = "training_data"
     output_dir = "qlora_output"
+    
+    # OpenAI API 키 설정
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        print("오류: OPENAI_API_KEY 환경 변수가 설정되지 않았습니다.")
+        print("1. .env 파일을 생성하고 OPENAI_API_KEY=your_api_key_here 형식으로 API 키를 추가하세요.")
+        print("2. 또는 환경 변수를 직접 설정하세요: export OPENAI_API_KEY=your_api_key_here")
+        return
     
     print("데이터 로드 중...")
     dataset = load_and_process_data(data_dir)

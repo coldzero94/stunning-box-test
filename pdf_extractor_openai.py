@@ -5,6 +5,11 @@ from openai import OpenAI
 from typing import List, Dict
 import json
 import time
+import os
+from dotenv import load_dotenv
+
+# 환경 변수 로드
+load_dotenv()
 
 def setup_openai(api_key: str) -> OpenAI:
     """
@@ -391,70 +396,21 @@ def extract_parallel_text_llm(en_pdf_path: str, ko_pdf_path: str, api_key: str,
 
 def main():
     # 설정
-    en_pdf = "animal parasiticides market - global forecast to 2025.pdf"
-    ko_pdf = "animal parasiticides market - global forecast to 2025 영문.pdf"
+    en_pdf_path = "animal parasiticides market - global forecast to 2025.pdf"
+    ko_pdf_path = "animal parasiticides market - global forecast to 2025 영문.pdf"
     output_path = "parallel_corpus_openai.csv"
-    api_key = "sk-proj-lcj80N4im628R7dNIRl7T3BlbkFJm68gdJADgfCoS7DzUyc7"
+    max_pages = 2  # 테스트를 위해 2페이지만 처리
     
-    # 처리 방식 선택
-    print("\n처리 방식을 선택하세요:")
-    print("1. 전체 페이지 처리")
-    print("2. 페이지 범위 지정")
-    print("3. 특정 페이지 처리")
-    print("4. 이전 작업 이어서 처리")
-    
-    choice = input("선택 (1-4): ").strip()
-    
-    if choice == "1":
-        # 전체 페이지 처리
-        print("\nOpenAI를 사용한 PDF 텍스트 매칭 시작...")
-        df = extract_parallel_text_llm(en_pdf, ko_pdf, api_key, output_path)
-    
-    elif choice == "2":
-        # 페이지 범위 지정
-        start = int(input("시작 페이지 (1부터): ").strip())
-        end_input = input("종료 페이지 (빈 값 입력시 PDF 끝까지): ").strip()
-        end = int(end_input) if end_input else None
-        print(f"\n{start}~{end if end else '마지막'} 페이지 처리 시작...")
-        df = extract_parallel_text_llm(en_pdf, ko_pdf, api_key, output_path, 
-                                     start_page=start, end_page=end)
-    
-    elif choice == "3":
-        # 특정 페이지 처리
-        pages = input("처리할 페이지 번호들 (쉼표로 구분, 예: 1,3,5): ").strip()
-        page_numbers = [int(p.strip()) for p in pages.split(",")]
-        print(f"\n페이지 {page_numbers} 처리 시작...")
-        df = extract_parallel_text_llm(en_pdf, ko_pdf, api_key, output_path, 
-                                     page_numbers=page_numbers)
-    
-    elif choice == "4":
-        # 이전 작업 이어서 처리
-        resume_file = input("이어서 처리할 중간 결과 파일 (예: parallel_corpus_openai_interim_200.csv): ").strip()
-        end_input = input("종료 페이지 (빈 값 입력시 PDF 끝까지): ").strip()
-        end = int(end_input) if end_input else None
-        print(f"\n{resume_file}에서 이어서 처리 시작...")
-        if end:
-            print(f"종료 페이지: {end}")
-        else:
-            print("PDF 마지막 페이지까지 처리합니다.")
-        df = extract_parallel_text_llm(en_pdf, ko_pdf, api_key, output_path,
-                                     end_page=end, resume_from=resume_file)
-    
-    else:
-        print("잘못된 선택입니다.")
+    # OpenAI API 키 설정
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        print("오류: OPENAI_API_KEY 환경 변수가 설정되지 않았습니다.")
+        print("1. .env 파일을 생성하고 OPENAI_API_KEY=your_api_key_here 형식으로 API 키를 추가하세요.")
+        print("2. 또는 환경 변수를 직접 설정하세요: export OPENAI_API_KEY=your_api_key_here")
         return
     
-    # 결과 통계 출력
-    if df is not None and not df.empty:
-        print("\n=== 결과 통계 ===")
-        print(f"총 매칭 쌍: {len(df)}개")
-        print(f"평균 신뢰도: {df['confidence'].mean():.2f}")
-        
-        print("\n신뢰도 분포:")
-        print(df['confidence'].describe())
-        
-        print("\n페이지별 매칭 수:")
-        print(df['page'].value_counts().sort_index())
+    # 병렬 텍스트 추출 실행
+    extract_parallel_text_llm(en_pdf_path, ko_pdf_path, api_key, output_path, max_pages)
 
 if __name__ == "__main__":
     main() 

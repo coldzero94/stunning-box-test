@@ -34,8 +34,6 @@ ENV/
 *.swo
 
 # Project specific
-*.pdf
-*.csv
 qlora_output/
 training_data/
 *.log
