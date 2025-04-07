@@ -34,7 +34,4 @@ ENV/
 *.swo
 
 # Project specific
-qlora_output/
-training_data/
 *.log
-tensorboard/

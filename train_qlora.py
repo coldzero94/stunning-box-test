@@ -1,18 +1,19 @@
-from datasets import load_dataset
+import os
+from pathlib import Path
+import pandas as pd
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     BitsAndBytesConfig,
     TrainingArguments,
     Trainer,
-    DataCollatorForSeq2Seq
+    DataCollatorForLanguageModeling
 )
-from peft import LoraConfig, prepare_model_for_kbit_training, get_peft_model
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+from datasets import Dataset, load_dataset
 import torch
-from pathlib import Path
-import numpy as np
-import os
 from dotenv import load_dotenv
+import json
 
 # 환경 변수 로드
 load_dotenv()
@@ -34,7 +35,7 @@ def prepare_model_and_tokenizer(model_name: str, load_in_4bit: bool = True):
         load_in_4bit=load_in_4bit,
         bnb_4bit_quant_type="nf4",
         bnb_4bit_compute_dtype=torch.float16,
-        bnb_4bit_use_double_quant=True,
+        bnb_4bit_use_double_quant=True
     )
     
     # 모델 로드
@@ -110,17 +111,9 @@ def compute_metrics(eval_preds):
 
 def main():
     # 설정
-    model_name = "gpt-4o-mini"  # OpenAI 모델로 변경
+    model_name = "google/gemma-2b"  # 또는 "Qwen/Qwen-2.5-12B"
     data_dir = "training_data"
     output_dir = "qlora_output"
-    
-    # OpenAI API 키 설정
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        print("오류: OPENAI_API_KEY 환경 변수가 설정되지 않았습니다.")
-        print("1. .env 파일을 생성하고 OPENAI_API_KEY=your_api_key_here 형식으로 API 키를 추가하세요.")
-        print("2. 또는 환경 변수를 직접 설정하세요: export OPENAI_API_KEY=your_api_key_here")
-        return
     
     print("데이터 로드 중...")
     dataset = load_and_process_data(data_dir)
@@ -164,11 +157,9 @@ def main():
     )
     
     # 데이터 콜레이터 설정
-    data_collator = DataCollatorForSeq2Seq(
-        tokenizer,
-        pad_to_multiple_of=8,
-        return_tensors="pt",
-        padding=True
+    data_collator = DataCollatorForLanguageModeling(
+        tokenizer=tokenizer,
+        mlm=False
     )
     
     # Trainer 초기화 및 학습
@@ -186,6 +177,7 @@ def main():
     
     print("모델 저장 중...")
     trainer.save_model()
+    tokenizer.save_pretrained(output_dir)
     
     print(f"학습이 완료되었습니다. 모델이 {output_dir}에 저장되었습니다.")
 
