@@ -4,7 +4,6 @@ import pandas as pd
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
-    BitsAndBytesConfig,
     TrainingArguments,
     Trainer,
     DataCollatorForLanguageModeling
@@ -30,18 +29,9 @@ def load_and_process_data(data_dir: str):
 
 def prepare_model_and_tokenizer(model_name: str):
     """모델과 토크나이저를 준비합니다."""
-    # 양자화 설정
-    quantization_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_compute_dtype=torch.float16,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_use_double_quant=True
-    )
-    
     # 모델 로드
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
-        quantization_config=quantization_config,
         device_map="auto",
         trust_remote_code=True,
         token=os.getenv('HUGGINGFACE_TOKEN')
@@ -101,7 +91,7 @@ def preprocess_function(examples, tokenizer, max_length=512):
 
 def main():
     # 설정
-    model_name = "google/gemma-3-12b-it"  # 또는 "Qwen/Qwen-2.5-12B"
+    model_name = "google/gemma-3-4b-it"  # 또는 "Qwen/Qwen-2.5-12B"
     data_dir = "training_data"
     output_dir = "qlora_output"
     
