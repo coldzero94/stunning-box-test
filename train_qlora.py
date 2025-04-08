@@ -4,7 +4,6 @@ import pandas as pd
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
-    BitsAndBytesConfig,
     TrainingArguments,
     Trainer,
     DataCollatorForLanguageModeling
@@ -30,15 +29,9 @@ def load_and_process_data(data_dir: str):
 
 def prepare_model_and_tokenizer(model_name: str):
     """모델과 토크나이저를 준비합니다."""
-    # 8비트 양자화 설정
-    quantization_config = BitsAndBytesConfig(
-        load_in_8bit=True
-    )
-    
-    # 모델 로드
+    # 모델 로드 (양자화 없이)
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
-        quantization_config=quantization_config,
         device_map="auto",
         trust_remote_code=True,
         token=os.getenv('HUGGINGFACE_TOKEN')
