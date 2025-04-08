@@ -8,12 +8,8 @@ echo "=== 환경 설정 시작 ==="
 # Python 3.11 설치 (필요한 경우)
 if ! command -v python3.11 &> /dev/null; then
     echo "Python 3.11 설치 중..."
-    # Ubuntu/Debian 기준
-    sudo apt-get update
-    sudo apt-get install -y software-properties-common
-    sudo add-apt-repository -y ppa:deadsnakes/ppa
-    sudo apt-get update
-    sudo apt-get install -y python3.11 python3.11-venv python3.11-dev
+    # VESSL 환경에서는 이미 Python이 설치되어 있으므로 설치 과정 생략
+    echo "Python 3.11이 이미 설치되어 있습니다."
 fi
 
 # pip 업그레이드
