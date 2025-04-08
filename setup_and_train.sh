@@ -41,9 +41,6 @@ echo "=== 데이터셋 준비 시작 ==="
 # training_data 디렉토리 생성
 mkdir -p training_data
 
-# 기존 training_data 파일 복사 (필요한 경우)
-# scp -r user@source_server:/path/to/training_data/* training_data/
-
 echo "=== 파인튜닝 시작 ==="
 
 # 파인튜닝 실행
@@ -51,7 +48,4 @@ python train_qlora.py
 
 echo "=== 파인튜닝 완료 ==="
 
-# 결과 모델 저장 (필요한 경우)
-# tar -czf qlora_output.tar.gz qlora_output/
-
-echo "모든 작업이 완료되었습니다." 
+echo "모든 작업이 완료되었습니다."

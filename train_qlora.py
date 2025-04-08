@@ -28,27 +28,24 @@ def load_and_process_data(data_dir: str):
                          })
     return dataset
 
-def prepare_model_and_tokenizer(model_name: str, load_in_4bit: bool = True):
+def prepare_model_and_tokenizer(model_name: str, load_in_8bit: bool = True):
     """모델과 토크나이저를 준비합니다."""
-    # BitsAndBytes 설정
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=load_in_4bit,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch.float16,
-        bnb_4bit_use_double_quant=True
-    )
-    
     # 모델 로드
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
-        quantization_config=bnb_config,
+        load_in_8bit=load_in_8bit,  # 8비트 양자화 사용
         device_map="auto",
-        trust_remote_code=True
+        trust_remote_code=True,
+        token=os.getenv('HUGGINGFACE_TOKEN')
     )
     model.config.use_cache = False
     
     # 토크나이저 로드
-    tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_name,
+        trust_remote_code=True,
+        token=os.getenv('HUGGINGFACE_TOKEN')
+    )
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "right"
     
@@ -94,24 +91,9 @@ def preprocess_function(examples, tokenizer, max_length=512):
     tokenized["labels"] = tokenized["input_ids"].clone()
     return tokenized
 
-def compute_metrics(eval_preds):
-    """평가 메트릭을 계산합니다."""
-    preds, labels = eval_preds
-    # 패딩 토큰 마스킹
-    mask = labels != -100
-    
-    # perplexity 계산
-    loss = torch.nn.CrossEntropyLoss(reduction='none')(
-        torch.tensor(preds[mask]).view(-1, preds.shape[-1]),
-        torch.tensor(labels[mask]).view(-1)
-    )
-    perplexity = torch.exp(torch.mean(loss)).item()
-    
-    return {"perplexity": perplexity}
-
 def main():
     # 설정
-    model_name = "google/gemma-2b"  # 또는 "Qwen/Qwen-2.5-12B"
+    model_name = "google/gemma-3-12b-it"  # 또는 "Qwen/Qwen-2.5-12B"
     data_dir = "training_data"
     output_dir = "qlora_output"
     
@@ -168,8 +150,7 @@ def main():
         args=training_args,
         train_dataset=tokenized_dataset["train"],
         eval_dataset=tokenized_dataset["test"],
-        data_collator=data_collator,
-        compute_metrics=compute_metrics
+        data_collator=data_collator
     )
     
     print("학습 시작...")
