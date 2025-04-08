@@ -5,19 +5,34 @@ set -e
 
 echo "=== 환경 설정 시작 ==="
 
-# Python 3.11 설치 (필요한 경우)
-if ! command -v python3.11 &> /dev/null; then
-    echo "Python 3.11 설치 중..."
-    # VESSL 환경에서는 이미 Python이 설치되어 있으므로 설치 과정 생략
-    echo "Python 3.11이 이미 설치되어 있습니다."
+# 사용 가능한 Python 버전 확인
+echo "사용 가능한 Python 버전 확인 중..."
+if command -v python3 &> /dev/null; then
+    echo "Python3 사용 가능:"
+    python3 --version
+elif command -v python &> /dev/null; then
+    echo "Python 사용 가능:"
+    python --version
+else
+    echo "Python이 설치되어 있지 않습니다."
+    exit 1
 fi
 
 # pip 업그레이드
-python3.11 -m pip install --upgrade pip
+echo "pip 업그레이드 중..."
+if command -v python3 &> /dev/null; then
+    python3 -m pip install --upgrade pip
+else
+    python -m pip install --upgrade pip
+fi
 
 # 가상환경 생성 및 활성화
 echo "가상환경 생성 중..."
-python3.11 -m venv venv
+if command -v python3 &> /dev/null; then
+    python3 -m venv venv
+else
+    python -m venv venv
+fi
 source venv/bin/activate
 
 # 필요한 패키지 설치
