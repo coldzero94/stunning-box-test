@@ -28,12 +28,20 @@ def load_and_process_data(data_dir: str):
                          })
     return dataset
 
-def prepare_model_and_tokenizer(model_name: str, load_in_8bit: bool = True):
+def prepare_model_and_tokenizer(model_name: str):
     """모델과 토크나이저를 준비합니다."""
+    # 양자화 설정
+    quantization_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_compute_dtype=torch.float16,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_use_double_quant=True
+    )
+    
     # 모델 로드
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
-        load_in_8bit=load_in_8bit,  # 8비트 양자화 사용
+        quantization_config=quantization_config,
         device_map="auto",
         trust_remote_code=True,
         token=os.getenv('HUGGINGFACE_TOKEN')
