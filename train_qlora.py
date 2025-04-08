@@ -54,7 +54,7 @@ def create_peft_config():
     return LoraConfig(
         r=8,  # 어텐션 헤드의 차원
         lora_alpha=32,  # 스케일링 파라미터
-        target_modules=["query_key_value"],  # 타겟 모듈
+        target_modules=["query", "value"],  # 타겟 모듈
         lora_dropout=0.05,
         bias="none",
         task_type="CAUSAL_LM"
