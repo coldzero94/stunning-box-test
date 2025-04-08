@@ -8,7 +8,7 @@ from transformers import (
     Trainer,
     DataCollatorForLanguageModeling
 )
-from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+from peft import LoraConfig, get_peft_model
 from datasets import Dataset, load_dataset
 import torch
 from dotenv import load_dotenv
@@ -64,8 +64,9 @@ def create_peft_config():
 
 def prepare_model_for_training(model, peft_config):
     """모델을 학습을 위해 준비합니다."""
-    model = prepare_model_for_kbit_training(model)
+    print("Applying PEFT LoRA configuration...")
     model = get_peft_model(model, peft_config)
+    model.print_trainable_parameters() # 학습 가능한 파라미터 수 출력
     return model
 
 def preprocess_function(examples, tokenizer, max_length=512):

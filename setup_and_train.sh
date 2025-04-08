@@ -3,6 +3,12 @@
 # 에러가 발생하면 스크립트 실행을 중단
 set -e
 
+# CUDA 환경 설정
+export CUDA_HOME=/usr/local/cuda
+export PATH=$CUDA_HOME/bin:$PATH
+export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+
+
 echo "=== 환경 설정 시작 ==="
 
 # 사용 가능한 Python 버전 확인
