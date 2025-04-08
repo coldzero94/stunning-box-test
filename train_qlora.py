@@ -74,7 +74,7 @@ def prepare_model_for_training(model, peft_config):
     model.print_trainable_parameters() # 학습 가능한 파라미터 수 출력
     return model
 
-def preprocess_function(examples, tokenizer, max_length=512):
+def preprocess_function(examples, tokenizer, max_length=256):
     """데이터를 전처리합니다."""
     # 데이터셋 형식에 따라 프롬프트 생성
     prompts = []
@@ -149,9 +149,9 @@ def main():
     training_args = TrainingArguments(
         output_dir=output_dir,
         num_train_epochs=3,
-        per_device_train_batch_size=4,
-        per_device_eval_batch_size=4,
-        gradient_accumulation_steps=4,
+        per_device_train_batch_size=2,
+        per_device_eval_batch_size=2,
+        gradient_accumulation_steps=8,
         eval_steps=100,
         save_steps=100,
         logging_steps=10,
@@ -164,7 +164,7 @@ def main():
         warmup_ratio=0.03,
         group_by_length=True,
         lr_scheduler_type="cosine",
-        report_to="none"  # TensorBoard 대신 "none"으로 설정
+        report_to="none"
     )
     
     # 데이터 콜레이터 설정
