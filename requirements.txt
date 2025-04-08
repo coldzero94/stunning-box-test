@@ -48,7 +48,7 @@ msgpack==1.1.0
 multidict==6.3.2
 multiprocess==0.70.16
 networkx==3.4.2
-numpy==2.2.4
+numpy>=1.22.4,<2.0.0
 nvidia-cublas-cu12==12.4.5.8
 nvidia-cuda-cupti-cu12==12.4.127
 nvidia-cuda-nvrtc-cu12==12.4.127
@@ -81,7 +81,7 @@ pydantic==2.11.2
 pymupdf==1.25.5
 pyproject-hooks==1.2.0
 python-dateutil==2.9.0.post0
-python-dotenv==1.0.1
+python-dotenv==1.1.0
 pytz==2025.2
 pywin32-ctypes==0.2.3
 pyyaml==6.0.2
@@ -101,7 +101,7 @@ sympy==1.13.1
 threadpoolctl==3.6.0
 tokenizers==0.21.1
 tomlkit==0.13.2
-torch==2.2.0
+torch==2.6.0
 tqdm==4.67.1
 transformers==4.51.0
 triton==3.2.0
