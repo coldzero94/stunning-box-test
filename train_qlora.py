@@ -126,7 +126,7 @@ def main():
     # 설정
     model_name = "google/gemma-2b-it"  # 또는 "Qwen/Qwen-2.5-12B"
     data_dir = "training_data"
-    output_dir = "qlora_output"
+    output_dir = "/qlora_output"
     
     print("데이터 로드 중...")
     dataset = load_and_process_data(data_dir)
