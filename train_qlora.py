@@ -164,7 +164,7 @@ def main():
         warmup_ratio=0.03,
         group_by_length=True,
         lr_scheduler_type="cosine",
-        report_to="tensorboard"
+        report_to="none"  # TensorBoard 대신 "none"으로 설정
     )
     
     # 데이터 콜레이터 설정
