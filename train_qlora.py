@@ -25,6 +25,11 @@ def load_and_process_data(data_dir: str):
                              'train': str(Path(data_dir) / 'train.jsonl'),
                              'test': str(Path(data_dir) / 'test.jsonl')
                          })
+    
+    # 데이터셋 형식 확인
+    print("데이터셋 컬럼:", dataset["train"].column_names)
+    print("데이터셋 샘플:", dataset["train"][0])
+    
     return dataset
 
 def prepare_model_and_tokenizer(model_name: str):
@@ -71,13 +76,38 @@ def prepare_model_for_training(model, peft_config):
 
 def preprocess_function(examples, tokenizer, max_length=512):
     """데이터를 전처리합니다."""
-    # 프롬프트 형식 지정
-    prompts = [
-        f"### 지시문: {example['instruction']}\n\n"
-        f"### 입력:\n{example['input']}\n\n"
-        f"### 응답:\n{example['output']}"
-        for example in examples
-    ]
+    # 데이터셋 형식에 따라 프롬프트 생성
+    prompts = []
+    
+    # 데이터셋의 컬럼 이름에 따라 처리
+    if 'instruction' in examples and 'input' in examples and 'output' in examples:
+        # instruction, input, output 형식
+        for i in range(len(examples['instruction'])):
+            instruction = examples['instruction'][i] if examples['instruction'][i] is not None else ""
+            input_text = examples['input'][i] if examples['input'][i] is not None else ""
+            output_text = examples['output'][i] if examples['output'][i] is not None else ""
+            
+            prompt = (
+                f"### 지시문: {instruction}\n\n"
+                f"### 입력:\n{input_text}\n\n"
+                f"### 응답:\n{output_text}{tokenizer.eos_token}"
+            )
+            prompts.append(prompt)
+    elif 'source' in examples and 'target' in examples:
+        # source, target 형식 (번역 데이터셋)
+        for i in range(len(examples['source'])):
+            source = examples['source'][i] if examples['source'][i] is not None else ""
+            target = examples['target'][i] if examples['target'][i] is not None else ""
+            
+            prompt = (
+                f"### 입력:\n{source}\n\n"
+                f"### 응답:\n{target}{tokenizer.eos_token}"
+            )
+            prompts.append(prompt)
+    else:
+        # 기타 형식 (데이터셋의 첫 번째 샘플을 출력하여 디버깅)
+        print("지원되지 않는 데이터셋 형식입니다. 데이터셋 샘플:", examples)
+        raise ValueError("지원되지 않는 데이터셋 형식입니다.")
     
     # 토크나이징
     tokenized = tokenizer(
@@ -94,7 +124,7 @@ def preprocess_function(examples, tokenizer, max_length=512):
 
 def main():
     # 설정
-    model_name = "google/gemma-3-4b-it"  # 또는 "Qwen/Qwen-2.5-12B"
+    model_name = "google/gemma-2b-it"  # 또는 "Qwen/Qwen-2.5-12B"
     data_dir = "training_data"
     output_dir = "qlora_output"
     
