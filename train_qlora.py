@@ -4,6 +4,7 @@ import pandas as pd
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
+    BitsAndBytesConfig,
     TrainingArguments,
     Trainer,
     DataCollatorForLanguageModeling
@@ -29,9 +30,18 @@ def load_and_process_data(data_dir: str):
 
 def prepare_model_and_tokenizer(model_name: str):
     """모델과 토크나이저를 준비합니다."""
+    # 양자화 설정
+    quantization_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_compute_dtype=torch.float16,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_use_double_quant=True
+    )
+    
     # 모델 로드
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
+        quantization_config=quantization_config,
         device_map="auto",
         trust_remote_code=True,
         token=os.getenv('HUGGINGFACE_TOKEN')
@@ -54,7 +64,7 @@ def create_peft_config():
     return LoraConfig(
         r=8,  # 어텐션 헤드의 차원
         lora_alpha=32,  # 스케일링 파라미터
-        target_modules=["query", "value"],  # 타겟 모듈
+        target_modules=["q_proj", "v_proj"],  # 타겟 모듈
         lora_dropout=0.05,
         bias="none",
         task_type="CAUSAL_LM"
