@@ -89,19 +89,52 @@ def get_args():
     
     parser.add_argument('--start-page', type=int, help='시작 페이지 (1부터 시작)')
     parser.add_argument('--end-page', type=int, help='끝 페이지 (미지정시 마지막 페이지까지)')
+    parser.add_argument('--korean-pdf', type=str, default=korean_pdf, help='한글 PDF 파일 경로')
+    parser.add_argument('--english-pdf', type=str, default=english_pdf, help='영어 PDF 파일 경로')
+    parser.add_argument('--output-dir', type=str, default=output_dir, help='결과 저장 디렉토리')
+    parser.add_argument('--use-gpt', action='store_true', help='GPT 번역 사용 여부')
+    parser.add_argument('--no-interactive', action='store_true', help='대화형 모드 비활성화')
     
     args = parser.parse_args()
     
-    # 사용자 입력 받기 (커맨드 라인에 시작/끝 페이지가 지정되지 않은 경우)
-    if args.start_page is None or args.end_page is None:
+    # PDF 파일 존재 확인
+    if not os.path.exists(args.korean_pdf):
+        print(f"오류: {args.korean_pdf} 파일을 찾을 수 없습니다.")
+        sys.exit(1)
+    if not os.path.exists(args.english_pdf):
+        print(f"오류: {args.english_pdf} 파일을 찾을 수 없습니다.")
+        sys.exit(1)
+    
+    # PDF 총 페이지 수 확인
+    doc_korean = fitz.open(args.korean_pdf)
+    total_pages_korean = doc_korean.page_count
+    doc_korean.close()
+    
+    doc_english = fitz.open(args.english_pdf)
+    total_pages_english = doc_english.page_count
+    doc_english.close()
+    
+    # 시작 페이지와 끝 페이지가 지정되지 않은 경우 기본값 설정
+    if args.start_page is None:
+        args.start_page = 1
+    
+    if args.end_page is None:
+        args.end_page = min(total_pages_korean, total_pages_english)
+    
+    # 페이지 범위 유효성 검사
+    if args.start_page < 1 or args.start_page > min(total_pages_korean, total_pages_english):
+        print(f"오류: 시작 페이지는 1과 {min(total_pages_korean, total_pages_english)} 사이여야 합니다.")
+        sys.exit(1)
+    
+    if args.end_page < args.start_page or args.end_page > min(total_pages_korean, total_pages_english):
+        print(f"오류: 끝 페이지는 시작 페이지({args.start_page})와 {min(total_pages_korean, total_pages_english)} 사이여야 합니다.")
+        sys.exit(1)
+    
+    # 대화형 모드가 비활성화되지 않은 경우 사용자 입력 받기
+    if not args.no_interactive and (args.start_page is None or args.end_page is None):
         user_input = get_user_input()
         args.start_page = user_input["start_page"]
         args.end_page = user_input["end_page"]
-    
-    # 미리 지정된 파일 경로 설정
-    args.korean_pdf = korean_pdf
-    args.english_pdf = english_pdf
-    args.output_dir = output_dir
     
     return args
 
@@ -342,20 +375,22 @@ def main():
     total_pages = min(len(korean_texts), len(english_texts))
     print(f"총 {total_pages}개 페이지를 처리합니다.")
     
-    # 실행 여부 확인
-    confirm = input("\n평가를 시작하시겠습니까? (y/n): ").lower()
-    if confirm != 'y' and confirm != 'yes':
-        print("프로그램을 종료합니다.")
-        sys.exit(0)
+    # 실행 여부 확인 (대화형 모드가 비활성화되지 않은 경우)
+    if not args.no_interactive:
+        confirm = input("\n평가를 시작하시겠습니까? (y/n): ").lower()
+        if confirm != 'y' and confirm != 'yes':
+            print("프로그램을 종료합니다.")
+            sys.exit(0)
     
     # OpenAI API 키 설정 및 확인
     openai_api_key = os.getenv('OPENAI_API_KEY')
-    use_gpt = False
+    use_gpt = args.use_gpt
     
     if not openai_api_key:
         print("\n경고: OPENAI_API_KEY가 설정되지 않았습니다.")
         print("GPT 번역은 건너뛰고 파인튜닝된 모델만 사용합니다.")
-    else:
+        use_gpt = False
+    elif not args.no_interactive and not args.use_gpt:
         use_gpt_input = input("GPT 번역을 포함하시겠습니까? (y/n, 기본값: n): ").lower()
         if use_gpt_input == 'y' or use_gpt_input == 'yes':
             use_gpt = True
