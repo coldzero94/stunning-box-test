@@ -124,7 +124,7 @@ def preprocess_function(examples, tokenizer, max_length=256):
 
 def main():
     # 설정
-    model_name = "google/gemma-2b-it"  # 또는 "Qwen/Qwen-2.5-12B"
+    model_name = "Qwen/Qwen2.5-14B-Instruct"  # 또는 "Qwen/Qwen-2.5-12B"
     data_dir = "training_data"
     output_dir = "/qlora_output"
     
