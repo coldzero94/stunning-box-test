@@ -48,9 +48,7 @@ def prepare_model_and_tokenizer(model_name: str):
     )
     model.config.use_cache = False
     
-    # 모델을 명시적으로 디바이스로 이동
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = model.to(device)
+    # 8비트 양자화 모델은 이미 올바른 디바이스로 설정되어 있으므로 .to() 호출 제거
     
     # 토크나이저 로드
     tokenizer = AutoTokenizer.from_pretrained(
