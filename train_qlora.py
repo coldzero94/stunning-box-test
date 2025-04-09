@@ -143,7 +143,7 @@ def main():
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512,expandable_segments:True"
     
     # 설정
-    model_name = "mistralai/Mistral-Small-24B-Instruct-2501"
+    model_name = "Qwen/Qwen2.5-VL-32B-Instruct"
     data_dir = "training_data"
     output_dir = "/qlora_output"
     
