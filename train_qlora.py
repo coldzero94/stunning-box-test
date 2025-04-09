@@ -34,20 +34,19 @@ def load_and_process_data(data_dir: str):
 
 def prepare_model_and_tokenizer(model_name: str):
     """모델과 토크나이저를 준비합니다."""
-    # 모델 로드 (양자화 없이)
+    # 메모리 효율적인 설정
+    torch.cuda.empty_cache()  # 캐시된 메모리 정리
+    
+    # 모델 로드 (메모리 효율적인 설정)
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
-        torch_dtype=torch.float16,  # device_map 대신 torch_dtype 사용
+        torch_dtype=torch.float16,
+        low_cpu_mem_usage=True,
+        device_map="auto",  # 자동 디바이스 매핑 사용
         trust_remote_code=True,
         token=os.getenv('HUGGINGFACE_TOKEN')
     )
     model.config.use_cache = False
-    
-    # 메타 텐서 문제 해결을 위해 to_empty() 사용
-    if hasattr(model, 'to_empty'):
-        model = model.to_empty(device='cuda')
-    else:
-        model = model.to('cuda')
     
     # 토크나이저 로드
     tokenizer = AutoTokenizer.from_pretrained(
@@ -129,6 +128,9 @@ def preprocess_function(examples, tokenizer, max_length=256):
     return tokenized
 
 def main():
+    # 메모리 최적화 설정
+    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512,expandable_segments:True"
+    
     # 설정
     model_name = "Qwen/Qwen2.5-14B-Instruct"  # 또는 "Qwen/Qwen-2.5-12B"
     data_dir = "training_data"
@@ -144,6 +146,12 @@ def main():
     peft_config = create_peft_config()
     model = prepare_model_for_training(model, peft_config)
     
+    # 그라디언트 체크포인팅 활성화
+    if hasattr(model, "enable_input_require_grads"):
+        model.enable_input_require_grads()
+    if hasattr(model, "gradient_checkpointing_enable"):
+        model.gradient_checkpointing_enable()
+    
     print("데이터 전처리 중...")
     tokenized_dataset = dataset.map(
         lambda x: preprocess_function(x, tokenizer),
@@ -155,9 +163,9 @@ def main():
     training_args = TrainingArguments(
         output_dir=output_dir,
         num_train_epochs=3,
-        per_device_train_batch_size=2,
-        per_device_eval_batch_size=2,
-        gradient_accumulation_steps=8,
+        per_device_train_batch_size=1,  # 배치 크기 감소
+        per_device_eval_batch_size=1,   # 배치 크기 감소
+        gradient_accumulation_steps=16,  # 그라디언트 누적 단계 증가
         eval_steps=100,
         save_steps=100,
         logging_steps=10,
@@ -170,7 +178,11 @@ def main():
         warmup_ratio=0.03,
         group_by_length=True,
         lr_scheduler_type="cosine",
-        report_to="none"
+        report_to="none",
+        # 메모리 최적화 설정
+        gradient_checkpointing=True,  # 그라디언트 체크포인팅 활성화
+        optim="adamw_torch_fused",    # 메모리 효율적인 옵티마이저
+        ddp_find_unused_parameters=False  # DDP 최적화
     )
     
     # 데이터 콜레이터 설정
