@@ -6,7 +6,8 @@ from transformers import (
     AutoTokenizer,
     TrainingArguments,
     Trainer,
-    DataCollatorForLanguageModeling
+    DataCollatorForLanguageModeling,
+    BitsAndBytesConfig
 )
 from peft import LoraConfig, get_peft_model
 from datasets import Dataset, load_dataset
@@ -37,12 +38,18 @@ def prepare_model_and_tokenizer(model_name: str):
     # 메모리 효율적인 설정
     torch.cuda.empty_cache()  # 캐시된 메모리 정리
     
+    # 8비트 양자화 설정
+    quantization_config = BitsAndBytesConfig(
+        load_in_8bit=True,
+        bnb_4bit_compute_dtype=torch.float16
+    )
+    
     # 모델 로드 (메모리 효율적인 설정)
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
         torch_dtype=torch.float16,
         low_cpu_mem_usage=True,
-        load_in_8bit=True,  # 8비트 양자화 사용
+        quantization_config=quantization_config,  # BitsAndBytesConfig 사용
         trust_remote_code=True,
         token=os.getenv('HUGGINGFACE_TOKEN')
     )
