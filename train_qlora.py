@@ -57,7 +57,6 @@ def prepare_model_and_tokenizer(model_name: str):
     )
     model.config.use_cache = False
     
-    # 4비트 양자화 모델은 이미 올바른 디바이스로 설정되어 있으므로 .to() 호출 제거
     
     # 토크나이저 로드
     tokenizer = AutoTokenizer.from_pretrained(
@@ -92,7 +91,6 @@ def prepare_model_for_training(model, peft_config):
 
 def preprocess_function(examples, tokenizer, max_length=256):
     """데이터를 전처리합니다."""
-    # 데이터셋 형식에 따라 프롬프트 생성
     prompts = []
     
     # 데이터셋의 컬럼 이름에 따라 처리
@@ -116,6 +114,8 @@ def preprocess_function(examples, tokenizer, max_length=256):
             target = examples['target'][i] if examples['target'][i] is not None else ""
             
             prompt = (
+                f"### 지시문: Translate the following English text into Korean, focusing on its meaning based on X-bar theory. "
+                f"Consider the core structure and natural word order in Korean while maintaining the semantic meaning.\n\n"
                 f"### 입력:\n{source}\n\n"
                 f"### 응답:\n{target}{tokenizer.eos_token}"
             )
@@ -143,7 +143,7 @@ def main():
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512,expandable_segments:True"
     
     # 설정
-    model_name = "Qwen/Qwen2.5-14B-Instruct"  # 또는 "Qwen/Qwen-2.5-12B"
+    model_name = "google/gemma-3-27b-it"
     data_dir = "training_data"
     output_dir = "/qlora_output"
     
