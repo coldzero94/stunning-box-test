@@ -38,10 +38,12 @@ def prepare_model_and_tokenizer(model_name: str):
     # 메모리 효율적인 설정
     torch.cuda.empty_cache()  # 캐시된 메모리 정리
     
-    # 8비트 양자화 설정
+    # 4비트 양자화 설정
     quantization_config = BitsAndBytesConfig(
-        load_in_8bit=True,
-        bnb_4bit_compute_dtype=torch.float16
+        load_in_4bit=True,  # 8비트 대신 4비트 양자화 사용
+        bnb_4bit_compute_dtype=torch.float16,
+        bnb_4bit_use_double_quant=True,
+        bnb_4bit_quant_type="nf4"
     )
     
     # 모델 로드 (메모리 효율적인 설정)
@@ -49,13 +51,13 @@ def prepare_model_and_tokenizer(model_name: str):
         model_name,
         torch_dtype=torch.float16,
         low_cpu_mem_usage=True,
-        quantization_config=quantization_config,  # BitsAndBytesConfig 사용
+        quantization_config=quantization_config,  # 4비트 양자화 설정 사용
         trust_remote_code=True,
         token=os.getenv('HUGGINGFACE_TOKEN')
     )
     model.config.use_cache = False
     
-    # 8비트 양자화 모델은 이미 올바른 디바이스로 설정되어 있으므로 .to() 호출 제거
+    # 4비트 양자화 모델은 이미 올바른 디바이스로 설정되어 있으므로 .to() 호출 제거
     
     # 토크나이저 로드
     tokenizer = AutoTokenizer.from_pretrained(
