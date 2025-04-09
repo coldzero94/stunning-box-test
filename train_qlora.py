@@ -42,11 +42,15 @@ def prepare_model_and_tokenizer(model_name: str):
         model_name,
         torch_dtype=torch.float16,
         low_cpu_mem_usage=True,
-        device_map="auto",  # 자동 디바이스 매핑 사용
+        load_in_8bit=True,  # 8비트 양자화 사용
         trust_remote_code=True,
         token=os.getenv('HUGGINGFACE_TOKEN')
     )
     model.config.use_cache = False
+    
+    # 모델을 명시적으로 디바이스로 이동
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
     
     # 토크나이저 로드
     tokenizer = AutoTokenizer.from_pretrained(
