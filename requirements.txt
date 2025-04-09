@@ -4,7 +4,7 @@ openai==1.70.0
 python-dotenv==1.0.1
 tqdm==4.67.1
 scikit-learn==1.6.1
-transformers==4.51.0
+transformers==4.49.0
 torch==2.2.1
 accelerate==0.27.2
 peft==0.7.1
