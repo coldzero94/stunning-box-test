@@ -37,11 +37,17 @@ def prepare_model_and_tokenizer(model_name: str):
     # 모델 로드 (양자화 없이)
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
-        device_map="auto",
+        torch_dtype=torch.float16,  # device_map 대신 torch_dtype 사용
         trust_remote_code=True,
         token=os.getenv('HUGGINGFACE_TOKEN')
     )
     model.config.use_cache = False
+    
+    # 메타 텐서 문제 해결을 위해 to_empty() 사용
+    if hasattr(model, 'to_empty'):
+        model = model.to_empty(device='cuda')
+    else:
+        model = model.to('cuda')
     
     # 토크나이저 로드
     tokenizer = AutoTokenizer.from_pretrained(
