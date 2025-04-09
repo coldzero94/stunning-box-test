@@ -14,3 +14,4 @@ tensorboard==2.15.2
 nltk==3.8.1
 rouge-score==0.1.2
 argparse==1.4.0
+bitsandbytes==0.41.1
