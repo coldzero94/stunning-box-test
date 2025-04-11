@@ -15,3 +15,4 @@ nltk
 rouge-score
 argparse
 bitsandbytes
+streamlit
