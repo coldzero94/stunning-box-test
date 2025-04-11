@@ -94,6 +94,8 @@ def get_args():
     parser.add_argument('--output-dir', type=str, default=output_dir, help='결과 저장 디렉토리')
     parser.add_argument('--use-gpt', action='store_true', help='GPT 번역 사용 여부')
     parser.add_argument('--no-interactive', action='store_true', help='대화형 모드 비활성화')
+    parser.add_argument('--base-model-name', type=str, default="google/gemma-2b-it", help='베이스 모델 이름')
+    parser.add_argument('--adapter-path', type=str, default="qlora_output", help='어댑터 경로')
     
     args = parser.parse_args()
     
@@ -207,17 +209,22 @@ def load_finetuned_model(base_model_name="google/gemma-2b-it", adapter_path="qlo
         base_model_name,
         device_map="auto",
         trust_remote_code=True,
-        token=os.getenv('HUGGINGFACE_TOKEN')
+        token=os.getenv('HUGGINGFACE_TOKEN'),
+        offload_buffers=True
     )
     
     print("LoRA 어댑터 로드 중...")
-    model = PeftModel.from_pretrained(model, adapter_path)
+    model = PeftModel.from_pretrained(
+        model, 
+        adapter_path,
+        offload_buffers=True
+    )
     
     return model, tokenizer
 
 def translate_with_finetuned(text, model, tokenizer, max_length=1024):
     """파인튜닝된 모델로 번역을 수행합니다."""
-    prompt = f"### 입력:\n{text}\n\n### 응답:\n"
+    prompt = f"### 지시사항:\n한국어 텍스트를 영어로 번역해주세요. 전문적이고 자연스러운 영어로 번역하세요.\n\n### 입력:\n{text}\n\n### 응답:\n"
     inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
     
     # 토큰 길이가 너무 길 경우 처리
@@ -262,23 +269,23 @@ def translate_with_gpt(text):
         client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
         
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4",  # 모델 이름 수정
             messages=[
                 {"role": "system", "content": "You are a professional translator. Translate the given Korean text to English accurately and naturally."},
                 {"role": "user", "content": text}
-            ]
+            ],
+            temperature=0.3,  # 더 일관된 번역을 위해 temperature 낮춤
+            max_tokens=2000  # 충분한 길이의 번역을 위해 max_tokens 설정
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
         print(f"GPT 번역 오류: {e}")
-        return ""
+        raise  # 에러를 상위로 전파하여 적절한 처리가 가능하도록 함
 
 def calculate_metrics(reference, hypothesis):
     """번역 품질 평가 지표를 계산합니다."""
     # BLEU 점수 계산
-    reference_tokens = reference.lower().split()
-    hypothesis_tokens = hypothesis.lower().split()
-    bleu_score = sentence_bleu([reference_tokens], hypothesis_tokens)
+    bleu_score = sentence_bleu([reference.split()], hypothesis.split())
     
     # ROUGE 점수 계산
     scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rougeL'], use_stemmer=True)
@@ -386,22 +393,22 @@ def main():
     openai_api_key = os.getenv('OPENAI_API_KEY')
     use_gpt = args.use_gpt
     
-    if not openai_api_key:
+    if use_gpt and not openai_api_key:
         print("\n경고: OPENAI_API_KEY가 설정되지 않았습니다.")
         print("GPT 번역은 건너뛰고 파인튜닝된 모델만 사용합니다.")
         use_gpt = False
-    elif not args.no_interactive and not args.use_gpt:
-        use_gpt_input = input("GPT 번역을 포함하시겠습니까? (y/n, 기본값: n): ").lower()
-        if use_gpt_input == 'y' or use_gpt_input == 'yes':
-            use_gpt = True
-            print("GPT 번역을 포함합니다.")
-        else:
+    elif use_gpt and not args.no_interactive:
+        use_gpt_input = input("GPT 번역을 포함하시겠습니까? (y/n, 기본값: y): ").lower()
+        if use_gpt_input == 'n' or use_gpt_input == 'no':
+            use_gpt = False
             print("GPT 번역은 건너뛰고 파인튜닝된 모델만 사용합니다.")
+        else:
+            print("GPT 번역을 포함합니다.")
     
     try:
         # 파인튜닝된 모델 로드
         print("\n파인튜닝된 모델 로드 중...")
-        model, tokenizer = load_finetuned_model()
+        model, tokenizer = load_finetuned_model(args.base_model_name, args.adapter_path)
         
         print("\n번역 및 평가 시작...")
         for i, (k_text, e_text) in enumerate(zip(korean_texts, english_texts), 1):
@@ -417,8 +424,13 @@ def main():
             # GPT 번역
             gpt_translation = ""
             if use_gpt:
-                print("\nGPT로 번역 중...")
-                gpt_translation = translate_with_gpt(korean)
+                try:
+                    print("\nGPT로 번역 중...")
+                    gpt_translation = translate_with_gpt(korean)
+                except Exception as e:
+                    print(f"GPT 번역 실패: {e}")
+                    print("GPT 번역을 건너뛰고 파인튜닝된 모델만 사용합니다.")
+                    use_gpt = False  # 이후 페이지에서 GPT 번역 시도하지 않음
             
             # 파인튜닝된 모델 번역
             print("파인튜닝된 모델로 번역 중...")
@@ -489,4 +501,4 @@ def main():
     summarize_and_print_results(df)
 
 if __name__ == "__main__":
-    main() 
+    main()

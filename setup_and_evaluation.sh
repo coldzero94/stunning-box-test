@@ -9,10 +9,15 @@ export PATH=$CUDA_HOME/bin:$PATH
 export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
 
 # 기본값 설정
-START_PAGE=1
-END_PAGE=10
-USE_GPT=false
-NO_INTERACTIVE=false
+START_PAGE=30
+END_PAGE=40
+USE_GPT=true  # 기본값을 true로 변경
+NO_INTERACTIVE=true  # 기본값을 true로 변경
+BASE_MODEL_NAME="google/gemma-2b-it"  # 기본 모델
+ADAPTER_PATH="gemma-2b"  # 기본 어댑터 경로
+KOREAN_PDF="korean.pdf"  # 한글 PDF 파일 경로
+ENGLISH_PDF="english.pdf"  # 영어 PDF 파일 경로
+OUTPUT_DIR="/evaluation_results"  # 결과 저장 디렉토리 (상대 경로로 수정)
 
 # 명령줄 인자 파싱
 while [[ $# -gt 0 ]]; do
@@ -29,9 +34,33 @@ while [[ $# -gt 0 ]]; do
       USE_GPT=true
       shift
       ;;
-    --no-interactive)
-      NO_INTERACTIVE=true
+    --no-use-gpt)  # GPT 사용 안 함 옵션 추가
+      USE_GPT=false
       shift
+      ;;
+    --interactive)  # 대화형 모드 활성화 옵션 추가
+      NO_INTERACTIVE=false
+      shift
+      ;;
+    --base-model)  # 베이스 모델 이름 옵션 추가
+      BASE_MODEL_NAME="$2"
+      shift 2
+      ;;
+    --adapter-path)  # 어댑터 경로 옵션 추가
+      ADAPTER_PATH="$2"
+      shift 2
+      ;;
+    --korean-pdf)  # 한글 PDF 파일 경로 옵션 추가
+      KOREAN_PDF="$2"
+      shift 2
+      ;;
+    --english-pdf)  # 영어 PDF 파일 경로 옵션 추가
+      ENGLISH_PDF="$2"
+      shift 2
+      ;;
+    --output-dir)  # 출력 디렉토리 옵션 추가
+      OUTPUT_DIR="$2"
+      shift 2
       ;;
     *)
       echo "알 수 없는 옵션: $1"
@@ -41,6 +70,15 @@ while [[ $# -gt 0 ]]; do
 done
 
 echo "=== 환경 설정 시작 ==="
+echo "시작 페이지: $START_PAGE"
+echo "끝 페이지: $END_PAGE"
+echo "베이스 모델: $BASE_MODEL_NAME"
+echo "어댑터 경로: $ADAPTER_PATH"
+echo "한글 PDF: $KOREAN_PDF"
+echo "영어 PDF: $ENGLISH_PDF"
+echo "출력 디렉토리: $OUTPUT_DIR"
+echo "GPT 사용: $([ "$USE_GPT" = true ] && echo "활성화" || echo "비활성화")"
+echo "대화형 모드: $([ "$NO_INTERACTIVE" = true ] && echo "비활성화" || echo "활성화")"
 
 # 사용 가능한 Python 버전 확인
 echo "사용 가능한 Python 버전 확인 중..."
@@ -97,7 +135,7 @@ echo "OpenAI API 키 확인 중..."
 python check_openai_key.py
 
 # 번역 평가 실행 명령어 구성
-EVAL_CMD="python evaluate_translation.py --start-page $START_PAGE --end-page $END_PAGE"
+EVAL_CMD="python evaluate_translation.py --start-page $START_PAGE --end-page $END_PAGE --base-model-name $BASE_MODEL_NAME --adapter-path $ADAPTER_PATH --korean-pdf \"$KOREAN_PDF\" --english-pdf \"$ENGLISH_PDF\" --output-dir $OUTPUT_DIR --use-gpt"
 
 # 추가 옵션 설정
 if [ "$USE_GPT" = true ]; then
