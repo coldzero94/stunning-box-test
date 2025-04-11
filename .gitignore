@@ -36,3 +36,9 @@ poetry.lock
 
 # Project specific
 *.log
+/gemma-2b/
+/gemma-27b/
+/qwen25-14b/
+
+
+.DS_Store
