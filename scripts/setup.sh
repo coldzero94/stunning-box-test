@@ -8,8 +8,13 @@ export CUDA_HOME=/usr/local/cuda
 export PATH=$CUDA_HOME/bin:$PATH
 export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
 
+# 스크립트 디렉토리를 기준으로 프로젝트 루트 설정
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 echo "=== 환경 설정 시작 ==="
+echo "스크립트 디렉토리: $SCRIPT_DIR"
+echo "프로젝트 루트: $PROJECT_ROOT"
 
 # 사용 가능한 Python 버전 확인
 echo "사용 가능한 Python 버전 확인 중..."
@@ -44,7 +49,7 @@ source venv/bin/activate
 
 # 필요한 패키지 설치
 echo "필요한 패키지 설치 중..."
-pip install -r requirements.txt
+pip install -r "${PROJECT_ROOT}/requirements.txt"
 
 # CUDA 사용 가능 여부 확인
 if command -v nvidia-smi &> /dev/null; then
