@@ -56,12 +56,7 @@ def format_chat_prompt(text: str, history: List[Dict[str, str]] = None) -> str:
     if history is None:
         history = []
     
-    # 고정된 챗봇 설정 프롬프트
-    chat_prompt = """당신은 Qwen이라는 AI 어시스턴트입니다. 사용자의 질문에 친절하고 유용하게 답변해 주세요. 
-당신은 대화 모드로 작동하며, 번역 모드가 아닙니다. 번역을 요청받더라도 번역 형식(Human: ... Assistant: ...)으로 응답하지 말고, 
-직접 번역 결과만 제공하세요. 번역 지시문을 포함하지 마세요."""
-    
-    formatted_prompt = f"<|im_start|>system\n{chat_prompt}<|im_end|>\n"
+    formatted_prompt = f"<|im_start|>system\n당신은 Qwen이라는 AI 어시스턴트입니다. 사용자의 질문에 친절하고 유용하게 답변해 주세요.<|im_end|>\n"
     
     # 대화 기록 추가 (최대 3개)
     recent_history = history[-3:] if history else []
@@ -79,27 +74,6 @@ def format_chat_prompt(text: str, history: List[Dict[str, str]] = None) -> str:
     
     return formatted_prompt
 
-def clean_response(text: str) -> str:
-    """응답 텍스트를 정리합니다."""
-    # 번역 관련 패턴 제거
-    patterns = [
-        r"Translate the following .+?\.",
-        r"Please translate .+?\.",
-        r"다음 .+? 번역하세요\.",
-        r"번역: ",
-        r"^Human: .+?\n?Assistant: ",
-        r"<\|im_end\|>.*"
-    ]
-    
-    result = text
-    for pattern in patterns:
-        result = re.sub(pattern, "", result, flags=re.DOTALL)
-    
-    # 응답의 시작과 끝의 공백 제거
-    result = result.strip()
-    
-    return result
-
 @app.post("/api/chat", response_model=Response)
 async def chat(query: Query):
     try:
@@ -111,10 +85,10 @@ async def chat(query: Query):
         
         # 생성 파라미터 설정
         gen_kwargs = {
-            "max_new_tokens": min(query.max_length, 2048),  # 출력 토큰 수 제한
+            "max_new_tokens": min(query.max_length, 2048),
             "temperature": query.temperature,
             "top_p": query.top_p,
-            "repetition_penalty": 1.2,  # 반복 방지
+            "repetition_penalty": 1.2,
             "do_sample": True,
             "pad_token_id": tokenizer.pad_token_id,
             "eos_token_id": tokenizer.eos_token_id,
@@ -123,26 +97,15 @@ async def chat(query: Query):
         # 텍스트 생성
         with torch.no_grad():
             outputs = model.generate(**inputs, **gen_kwargs)
+            response_text = tokenizer.decode(outputs[0], skip_special_tokens=False)
+            response_text = response_text[len(prompt):].replace("<|im_end|>", "").strip()
         
-        # 생성된 텍스트 디코딩 및 입력 프롬프트 제거
-        full_response = tokenizer.decode(outputs[0], skip_special_tokens=False)
-        response_text = full_response[len(prompt):]
+        # 메모리 정리
+        del inputs
+        del outputs
+        torch.cuda.empty_cache()
         
-        # Qwen 모델의 특수 토큰 제거
-        response_text = response_text.replace("<|im_end|>", "").strip()
-        
-        # 응답 정리
-        clean_text = clean_response(response_text)
-        
-        # 번역 작업이 요청된 경우 직접 번역
-        if "번역" in query.text or "translate" in query.text.lower():
-            # 번역 패턴 검출
-            translation_request = re.search(r"[\"'](.+?)[\"']", query.text)
-            if translation_request:
-                # 번역이 요청된 텍스트를 직접 응답으로 반환
-                return Response(response=translation_request.group(1))
-        
-        return Response(response=clean_text)
+        return Response(response=response_text)
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
