@@ -29,4 +29,4 @@ echo "현재 디렉토리: $(pwd)"
 
 # Streamlit 실행
 echo "Streamlit 시작 중..."
-streamlit run streamlit_app.py --server.port 8000 --server.address 0.0.0.0
+streamlit run streamlit_app.py --server.port 8000
