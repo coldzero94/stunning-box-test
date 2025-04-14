@@ -8,12 +8,15 @@ export CUDA_HOME=/usr/local/cuda
 export PATH=$CUDA_HOME/bin:$PATH
 export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
 
-# 스크립트 디렉토리를 기준으로 프로젝트 루트 설정
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+# 작업 디렉토리 설정 (VESSL 환경)
+WORK_DIR="/workspace"
+cd "$WORK_DIR"
+
+# 현재 디렉토리를 프로젝트 루트로 설정
+PROJECT_ROOT="$(pwd)"
 
 echo "=== 환경 설정 시작 ==="
-echo "스크립트 디렉토리: $SCRIPT_DIR"
+echo "작업 디렉토리: $(pwd)"
 echo "프로젝트 루트: $PROJECT_ROOT"
 
 # 사용 가능한 Python 버전 확인
@@ -49,7 +52,12 @@ source venv/bin/activate
 
 # 필요한 패키지 설치
 echo "필요한 패키지 설치 중..."
-pip install -r "${PROJECT_ROOT}/requirements.txt"
+if [ -f "${PROJECT_ROOT}/requirements.txt" ]; then
+    pip install -r "${PROJECT_ROOT}/requirements.txt"
+else
+    echo "requirements.txt 파일을 찾을 수 없습니다. 기본 패키지만 설치합니다."
+    pip install streamlit torch transformers accelerate sentencepiece protobuf safetensors
+fi
 
 # CUDA 사용 가능 여부 확인
 if command -v nvidia-smi &> /dev/null; then
