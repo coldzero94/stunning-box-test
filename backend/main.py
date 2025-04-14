@@ -21,7 +21,7 @@ ADAPTER_PATH = "qwen25-14b"
 
 print("토크나이저 로드 중...")
 tokenizer = AutoTokenizer.from_pretrained(
-    ADAPTER_PATH,
+    BASE_MODEL_NAME,
     trust_remote_code=True
 )
 

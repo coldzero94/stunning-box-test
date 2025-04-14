@@ -18,7 +18,7 @@ def load_model():
     
     print("토크나이저 로드 중...")
     tokenizer = AutoTokenizer.from_pretrained(
-        adapter_path,
+        base_model_name,
         trust_remote_code=True
     )
     
