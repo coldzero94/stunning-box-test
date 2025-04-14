@@ -19,3 +19,5 @@ streamlit
 fastapi
 starlette
 uvicorn
+asyncio
+aiohttp

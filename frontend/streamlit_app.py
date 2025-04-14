@@ -2,6 +2,7 @@ import streamlit as st
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import os
+import asyncio
 
 # 페이지 설정
 st.set_page_config(
@@ -27,7 +28,8 @@ def load_model():
         model_path,
         device_map="auto",
         trust_remote_code=True,
-        torch_dtype=torch.float16
+        torch_dtype=torch.float16,
+        state_dict_assign=True
     )
     return model, tokenizer
 
@@ -47,6 +49,14 @@ def generate_response(prompt, history):
     
     # 토큰화 및 생성
     inputs = tokenizer(input_text, return_tensors="pt").to(model.device)
+    
+    # 비동기 처리를 위한 설정
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    
     with torch.no_grad():
         outputs = model.generate(
             **inputs,
