@@ -17,16 +17,14 @@ else
     exit 1
 fi
 
-# streamlit 설치 확인 및 설치
-if ! command -v streamlit &> /dev/null; then
-    echo "streamlit 설치 중..."
-    pip install streamlit
-fi
+# 필요한 패키지 설치 확인 및 설치
+echo "필요한 패키지 설치 확인 중..."
+pip install -q gradio vllm transformers
 
 # frontend 디렉토리로 이동
 cd "${PROJECT_ROOT}/frontend"
 echo "현재 디렉토리: $(pwd)"
 
-# Streamlit 실행
-echo "Streamlit 시작 중..."
-streamlit run streamlit_app.py --server.port 8000 --server.fileWatcherType none
+# Gradio 실행
+echo "Gradio 시작 중..."
+python app.py --model-id Qwen/Qwen2.5-14B-Instruct --port 8000

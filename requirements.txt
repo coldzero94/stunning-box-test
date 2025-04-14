@@ -15,7 +15,8 @@ nltk
 rouge-score
 argparse
 bitsandbytes
-streamlit
+gradio
+vllm
 fastapi
 starlette
 uvicorn
