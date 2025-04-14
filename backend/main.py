@@ -17,7 +17,7 @@ os.environ["ACCELERATE_DISPATCH_MODEL"] = "0"  # 디스패치 기능 비활성�
 
 # 모델과 토크나이저 초기화
 BASE_MODEL_NAME = "Qwen/Qwen2.5-14B-Instruct"
-ADAPTER_PATH = "qwen25-14b"
+ADAPTER_PATH = "/qwen25-14b"
 
 print("토크나이저 로드 중...")
 tokenizer = AutoTokenizer.from_pretrained(

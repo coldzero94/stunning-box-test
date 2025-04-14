@@ -14,7 +14,7 @@ st.set_page_config(
 
 def load_model():
     base_model_name = "Qwen/Qwen2.5-14B-Instruct"
-    adapter_path = "qwen25-14b"  # LoRA 어댑터 경로
+    adapter_path = "/qwen25-14b"  # LoRA 어댑터 경로
     
     print("토크나이저 로드 중...")
     tokenizer = AutoTokenizer.from_pretrained(
