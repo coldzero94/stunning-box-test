@@ -96,7 +96,6 @@ def generate_response(prompt, history=None):
         return "⚠️ 입력이 너무 깁니다. 더 짧은 텍스트로 시도해주세요."
     
     # 타이머 시작
-    start_time = time.time()
     global stop_timer
     stop_timer = threading.Event()
     timer_placeholder = st.empty()
@@ -122,9 +121,6 @@ def generate_response(prompt, history=None):
         stop_timer.set()
         timer_thread.join()
         timer_placeholder.empty()
-        
-        # 총 소요 시간 계산
-        total_time = time.time() - start_time
     
     del inputs
     del outputs
@@ -133,9 +129,6 @@ def generate_response(prompt, history=None):
     # 출력이 최대 길이에 도달한 경우 알림
     if len(response_text.split()) >= MAX_NEW_TOKENS:
         response_text += "\n\n⚠️ 응답이 최대 길이에 도달했습니다."
-    
-    # 총 소요 시간 정보 추가
-    response_text += f"\n\n---\n⏱️ 총 소요 시간: {total_time:.1f}초"
     
     return response_text
 
