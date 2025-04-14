@@ -24,13 +24,20 @@ if "tokenizer" not in st.session_state:
 def load_model():
     model_path = "/qwen25-14b"
     tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+    
+    # 모델 로딩 전에 환경 변수 설정
+    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
+    
     model = AutoModelForCausalLM.from_pretrained(
         model_path,
         device_map="auto",
         trust_remote_code=True,
-        torch_dtype=torch.float16,
-        state_dict_assign=True
+        torch_dtype=torch.float16
     )
+    
+    # LoRA 파라미터 로딩 후 모델을 eval 모드로 설정
+    model.eval()
+    
     return model, tokenizer
 
 def generate_response(prompt, history):
