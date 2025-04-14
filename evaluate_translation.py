@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-import fitz  # pymupdf
+import fitz
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import PeftModel
