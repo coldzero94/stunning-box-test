@@ -11,16 +11,6 @@ st.set_page_config(
     layout="wide"
 )
 
-# 세션 상태 초기화
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-if "model" not in st.session_state:
-    st.session_state.model = None
-
-if "tokenizer" not in st.session_state:
-    st.session_state.tokenizer = None
-
 def load_model():
     model_path = "/qwen25-14b"
     tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
@@ -28,11 +18,15 @@ def load_model():
     # 모델 로딩 전에 환경 변수 설정
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
     
+    # 메타 디바이스 사용 비활성화
+    os.environ["ACCELERATE_USE_META_DEVICE"] = "0"
+    
     model = AutoModelForCausalLM.from_pretrained(
         model_path,
         device_map="auto",
         trust_remote_code=True,
-        torch_dtype=torch.float16
+        torch_dtype=torch.float16,
+        low_cpu_mem_usage=True
     )
     
     # LoRA 파라미터 로딩 후 모델을 eval 모드로 설정
@@ -77,6 +71,21 @@ def generate_response(prompt, history):
     
     response = tokenizer.decode(outputs[0][inputs.input_ids.shape[1]:], skip_special_tokens=True)
     return response.strip()
+
+# 세션 상태 초기화
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+if "model" not in st.session_state:
+    st.session_state.model = None
+
+if "tokenizer" not in st.session_state:
+    st.session_state.tokenizer = None
+
+# 앱 시작 시 모델 로드
+if st.session_state.model is None or st.session_state.tokenizer is None:
+    with st.spinner("모델을 로딩 중입니다..."):
+        st.session_state.model, st.session_state.tokenizer = load_model()
 
 # UI 구현
 st.title("🤖 Qwen Chat")
