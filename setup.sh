@@ -8,17 +8,6 @@ export CUDA_HOME=/usr/local/cuda
 export PATH=$CUDA_HOME/bin:$PATH
 export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
 
-# 작업 디렉토리 설정 (VESSL 환경)
-WORK_DIR="/workspace"
-cd "$WORK_DIR"
-
-# 현재 디렉토리를 프로젝트 루트로 설정
-PROJECT_ROOT="$(pwd)"
-
-echo "=== 환경 설정 시작 ==="
-echo "작업 디렉토리: $(pwd)"
-echo "프로젝트 루트: $PROJECT_ROOT"
-
 # 사용 가능한 Python 버전 확인
 echo "사용 가능한 Python 버전 확인 중..."
 if command -v python3 &> /dev/null; then
