@@ -11,17 +11,22 @@ app = FastAPI()
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
 os.environ["ACCELERATE_USE_META_DEVICE"] = "0"
 os.environ["ACCELERATE_OFFLOAD_WEIGHTS"] = "0"
+os.environ["ACCELERATE_DISPATCH_MODEL"] = "0"  # 디스패치 기능 비활성화
 
 # 모델과 토크나이저 초기화
 MODEL_PATH = "/qwen25-14b"
 tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH, trust_remote_code=True)
+
+# 모델 로딩 방식 변경
+device = "cuda" if torch.cuda.is_available() else "cpu"
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_PATH,
-    device_map="auto",
     trust_remote_code=True,
     torch_dtype=torch.float16,
     low_cpu_mem_usage=True
-).eval()
+)
+model = model.to(device)  # 명시적으로 디바이스에 할당
+model.eval()
 
 class Query(BaseModel):
     text: str
@@ -36,7 +41,7 @@ class Response(BaseModel):
 async def chat(query: Query):
     try:
         # 입력 텍스트 토큰화
-        inputs = tokenizer(query.text, return_tensors="pt").to(model.device)
+        inputs = tokenizer(query.text, return_tensors="pt").to(device)
         
         # 생성 파라미터 설정
         gen_kwargs = {
