@@ -7,7 +7,7 @@ import re
 
 # 페이지 설정
 st.set_page_config(
-    page_title="Qwen Chat",
+    page_title="스터닝 박스 번역 챗봇",
     page_icon="🤖",
     layout="wide"
 )
@@ -76,14 +76,19 @@ def generate_response(prompt, history=None):
     
     # 입력 프롬프트 생성
     input_text = format_chat_prompt(prompt, history)
-    
-    # 토큰화 및 생성
     inputs = tokenizer(input_text, return_tensors="pt").to(model.device)
+    
+    # 입력 토큰 수 확인
+    input_token_length = inputs.input_ids.shape[1]
+    MAX_NEW_TOKENS = 3000
+    
+    if input_token_length > 3000:  # 입력이 너무 긴 경우
+        return "⚠️ 입력이 너무 깁니다. 더 짧은 텍스트로 시도해주세요."
     
     with torch.no_grad():
         outputs = model.generate(
             **inputs,
-            max_new_tokens=512,
+            max_new_tokens=MAX_NEW_TOKENS,
             temperature=0.7,
             top_p=0.9,
             repetition_penalty=1.2,
@@ -94,10 +99,13 @@ def generate_response(prompt, history=None):
         response_text = tokenizer.decode(outputs[0], skip_special_tokens=False)
         response_text = response_text[len(input_text):].replace("<|im_end|>", "").strip()
     
-    # 메모리 정리
     del inputs
     del outputs
     torch.cuda.empty_cache()
+    
+    # 출력이 최대 길이에 도달한 경우 알림
+    if len(response_text.split()) >= MAX_NEW_TOKENS:
+        response_text += "\n\n⚠️ 응답이 최대 길이에 도달했습니다."
     
     return response_text
 
@@ -118,6 +126,7 @@ if st.session_state.model is None or st.session_state.tokenizer is None:
 
 # UI 구현
 st.title("🤖 Qwen Chat")
+st.caption("최대 입/출력 토큰: 3000 토큰")
 
 # 사이드바에 모델 정보 표시
 with st.sidebar:

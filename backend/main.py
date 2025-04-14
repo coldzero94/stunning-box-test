@@ -83,9 +83,16 @@ async def chat(query: Query):
         # 입력 텍스트 토큰화
         inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
         
+        # 입력 토큰 수 확인
+        input_token_length = inputs.input_ids.shape[1]
+        MAX_NEW_TOKENS = 3000
+        
+        if input_token_length > 3000:
+            return Response(response="⚠️ 입력이 너무 깁니다. 더 짧은 텍스트로 시도해주세요.")
+        
         # 생성 파라미터 설정
         gen_kwargs = {
-            "max_new_tokens": min(query.max_length, 2048),
+            "max_new_tokens": MAX_NEW_TOKENS,
             "temperature": query.temperature,
             "top_p": query.top_p,
             "repetition_penalty": 1.2,
@@ -100,10 +107,13 @@ async def chat(query: Query):
             response_text = tokenizer.decode(outputs[0], skip_special_tokens=False)
             response_text = response_text[len(prompt):].replace("<|im_end|>", "").strip()
         
-        # 메모리 정리
         del inputs
         del outputs
         torch.cuda.empty_cache()
+        
+        # 출력이 최대 길이에 도달한 경우 알림
+        if len(response_text.split()) >= MAX_NEW_TOKENS:
+            response_text += "\n\n⚠️ 응답이 최대 길이에 도달했습니다."
         
         return Response(response=response_text)
     
