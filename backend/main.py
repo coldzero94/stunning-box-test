@@ -29,8 +29,8 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_PATH,
     trust_remote_code=True,
-    quantization_config=quantization_config,
     device_map="auto",  # 자동 디바이스 매핑 사용
+    quantization_config=quantization_config,
     low_cpu_mem_usage=True
 )
 model.eval()

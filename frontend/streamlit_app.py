@@ -1,6 +1,6 @@
 import streamlit as st
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 import os
 import asyncio
 
@@ -16,7 +16,7 @@ def load_model():
     tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
     
     # 모델 로딩 전에 환경 변수 설정
-    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
+    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512,expandable_segments:True"
     
     # 메타 디바이스 사용 비활성화
     os.environ["ACCELERATE_USE_META_DEVICE"] = "0"
@@ -24,11 +24,22 @@ def load_model():
     # 오프로딩 비활성화
     os.environ["ACCELERATE_OFFLOAD_WEIGHTS"] = "0"
     
+    # 디스패치 기능 비활성화
+    os.environ["ACCELERATE_DISPATCH_MODEL"] = "0"
+    
+    # 8비트 양자화 설정
+    quantization_config = BitsAndBytesConfig(
+        load_in_8bit=True,
+        llm_int8_threshold=6.0,
+        llm_int8_has_fp16_weight=False
+    )
+    
+    # 모델 로드
     model = AutoModelForCausalLM.from_pretrained(
         model_path,
         device_map="auto",
         trust_remote_code=True,
-        torch_dtype=torch.float16,
+        quantization_config=quantization_config,
         low_cpu_mem_usage=True
     )
     
