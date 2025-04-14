@@ -52,12 +52,7 @@ source venv/bin/activate
 
 # 필요한 패키지 설치
 echo "필요한 패키지 설치 중..."
-if [ -f "${PROJECT_ROOT}/requirements.txt" ]; then
-    pip install -r "${PROJECT_ROOT}/requirements.txt"
-else
-    echo "requirements.txt 파일을 찾을 수 없습니다. 기본 패키지만 설치합니다."
-    pip install streamlit torch transformers accelerate sentencepiece protobuf safetensors
-fi
+pip install -r requirements.txt
 
 # CUDA 사용 가능 여부 확인
 if command -v nvidia-smi &> /dev/null; then
