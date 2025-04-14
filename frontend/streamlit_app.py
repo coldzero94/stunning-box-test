@@ -59,7 +59,9 @@ def generate_response(prompt, history):
     # 입력 텍스트 준비
     input_text = ""
     for h in history:
-        input_text += f"Human: {h['user']}\nAssistant: {h['assistant']}\n"
+        role = h['role']
+        content = h['content']
+        input_text += f"{role.capitalize()}: {content}\n"
     input_text += f"Human: {prompt}\nAssistant: "
     
     # 토큰화 및 생성
