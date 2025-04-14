@@ -48,7 +48,10 @@ def load_model():
     
     return model, tokenizer
 
-def generate_response(prompt, history):
+def generate_response(prompt, history=None):
+    if history is None:
+        history = []
+        
     if st.session_state.model is None or st.session_state.tokenizer is None:
         with st.spinner("Loading model..."):
             st.session_state.model, st.session_state.tokenizer = load_model()
@@ -56,12 +59,18 @@ def generate_response(prompt, history):
     model = st.session_state.model
     tokenizer = st.session_state.tokenizer
     
-    # 입력 텍스트 준비
+    # 간결한 대화 형식으로 변경
     input_text = ""
-    for h in history:
-        role = h['role']
-        content = h['content']
-        input_text += f"{role.capitalize()}: {content}\n"
+    for i, msg in enumerate(history):
+        if i >= len(history) - 3:  # 최근 3개의 메시지만 포함
+            try:
+                role = msg.get('role', 'user' if i % 2 == 0 else 'assistant')
+                content = msg.get('content', '')
+                role_text = 'Human' if role == 'user' else 'Assistant'
+                input_text += f"{role_text}: {content}\n"
+            except Exception as e:
+                st.error(f"메시지 처리 중 오류 발생: {str(e)}")
+                
     input_text += f"Human: {prompt}\nAssistant: "
     
     # 토큰화 및 생성
