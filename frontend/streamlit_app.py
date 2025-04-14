@@ -21,6 +21,9 @@ def load_model():
     # 메타 디바이스 사용 비활성화
     os.environ["ACCELERATE_USE_META_DEVICE"] = "0"
     
+    # 오프로딩 비활성화
+    os.environ["ACCELERATE_OFFLOAD_WEIGHTS"] = "0"
+    
     model = AutoModelForCausalLM.from_pretrained(
         model_path,
         device_map="auto",

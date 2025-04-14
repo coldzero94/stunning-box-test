@@ -7,13 +7,20 @@ import os
 
 app = FastAPI()
 
+# 환경 변수 설정
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
+os.environ["ACCELERATE_USE_META_DEVICE"] = "0"
+os.environ["ACCELERATE_OFFLOAD_WEIGHTS"] = "0"
+
 # 모델과 토크나이저 초기화
 MODEL_PATH = "/qwen25-14b"
 tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH, trust_remote_code=True)
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_PATH,
     device_map="auto",
-    trust_remote_code=True
+    trust_remote_code=True,
+    torch_dtype=torch.float16,
+    low_cpu_mem_usage=True
 ).eval()
 
 class Query(BaseModel):
