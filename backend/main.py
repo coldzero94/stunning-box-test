@@ -8,7 +8,7 @@ import os
 app = FastAPI()
 
 # 모델과 토크나이저 초기화
-MODEL_PATH = "/Users/coby/sand_box/stunning-box-test/qwen25-14b"
+MODEL_PATH = "/qwen25-14b"
 tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH, trust_remote_code=True)
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_PATH,
