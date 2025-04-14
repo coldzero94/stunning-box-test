@@ -25,4 +25,4 @@ source venv/bin/activate
 
 # FastAPI 실행
 echo "FastAPI 서버 시작 중..."
-uvicorn backend.main:app --host 0.0.0.0 --port 8000 --timeout-keep-alive 300 --workers 1 
+uvicorn backend.main:app --host 0.0.0.0 --port 8000 --timeout-keep-alive 3000 --workers 1 
