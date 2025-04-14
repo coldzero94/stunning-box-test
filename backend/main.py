@@ -2,13 +2,13 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 import os
 
 app = FastAPI()
 
 # 환경 변수 설정
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512,expandable_segments:True"
 os.environ["ACCELERATE_USE_META_DEVICE"] = "0"
 os.environ["ACCELERATE_OFFLOAD_WEIGHTS"] = "0"
 os.environ["ACCELERATE_DISPATCH_MODEL"] = "0"  # 디스패치 기능 비활성화
@@ -17,15 +17,22 @@ os.environ["ACCELERATE_DISPATCH_MODEL"] = "0"  # 디스패치 기능 비활성�
 MODEL_PATH = "/qwen25-14b"
 tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH, trust_remote_code=True)
 
+# 8비트 양자화 설정
+quantization_config = BitsAndBytesConfig(
+    load_in_8bit=True,
+    llm_int8_threshold=6.0,
+    llm_int8_has_fp16_weight=False
+)
+
 # 모델 로딩 방식 변경
 device = "cuda" if torch.cuda.is_available() else "cpu"
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_PATH,
     trust_remote_code=True,
-    torch_dtype=torch.float16,
+    quantization_config=quantization_config,
+    device_map="auto",  # 자동 디바이스 매핑 사용
     low_cpu_mem_usage=True
 )
-model = model.to(device)  # 명시적으로 디바이스에 할당
 model.eval()
 
 class Query(BaseModel):
