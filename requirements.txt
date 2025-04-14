@@ -16,3 +16,6 @@ rouge-score
 argparse
 bitsandbytes
 streamlit
+fastapi
+starlette
+uvicorn
