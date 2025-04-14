@@ -16,8 +16,8 @@ os.environ["ACCELERATE_OFFLOAD_WEIGHTS"] = "0"
 os.environ["ACCELERATE_DISPATCH_MODEL"] = "0"  # 디스패치 기능 비활성화
 
 # 모델과 토크나이저 초기화
-BASE_MODEL_PATH = "/qwen25-14b"
-ADAPTER_PATH = "qlora_output"
+BASE_MODEL_NAME = "Qwen/Qwen2.5-14B-Instruct"
+ADAPTER_PATH = "qwen25-14b"
 
 print("토크나이저 로드 중...")
 tokenizer = AutoTokenizer.from_pretrained(
@@ -27,7 +27,7 @@ tokenizer = AutoTokenizer.from_pretrained(
 
 print("베이스 모델 로드 중...")
 model = AutoModelForCausalLM.from_pretrained(
-    BASE_MODEL_PATH,
+    BASE_MODEL_NAME,
     device_map="auto",
     trust_remote_code=True,
     torch_dtype=torch.float16,
@@ -40,7 +40,6 @@ model = PeftModel.from_pretrained(
     ADAPTER_PATH,
     offload_buffers=True
 )
-model.eval()
 
 class Query(BaseModel):
     text: str

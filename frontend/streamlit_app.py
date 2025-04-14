@@ -13,8 +13,8 @@ st.set_page_config(
 )
 
 def load_model():
-    base_model_path = "/qwen25-14b"
-    adapter_path = "qlora_output"  # LoRA 어댑터 경로
+    base_model_name = "Qwen/Qwen2.5-14B-Instruct"
+    adapter_path = "qwen25-14b"  # LoRA 어댑터 경로
     
     print("토크나이저 로드 중...")
     tokenizer = AutoTokenizer.from_pretrained(
@@ -24,7 +24,7 @@ def load_model():
     
     print("베이스 모델 로드 중...")
     model = AutoModelForCausalLM.from_pretrained(
-        base_model_path,
+        base_model_name,
         device_map="auto",
         trust_remote_code=True,
         torch_dtype=torch.float16,
@@ -38,7 +38,6 @@ def load_model():
         offload_buffers=True
     )
     
-    model.eval()
     return model, tokenizer
 
 def format_chat_prompt(text: str, history=None):
