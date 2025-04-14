@@ -1,9 +1,11 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from peft import PeftModel
 import os
+import re
 
 app = FastAPI()
 
@@ -14,29 +16,35 @@ os.environ["ACCELERATE_OFFLOAD_WEIGHTS"] = "0"
 os.environ["ACCELERATE_DISPATCH_MODEL"] = "0"  # 디스패치 기능 비활성화
 
 # 모델과 토크나이저 초기화
-MODEL_PATH = "/qwen25-14b"
-tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH, trust_remote_code=True)
+BASE_MODEL_PATH = "/qwen25-14b"
+ADAPTER_PATH = "qlora_output"
 
-# 8비트 양자화 설정
-quantization_config = BitsAndBytesConfig(
-    load_in_8bit=True,
-    llm_int8_threshold=6.0,
-    llm_int8_has_fp16_weight=False
+print("토크나이저 로드 중...")
+tokenizer = AutoTokenizer.from_pretrained(
+    ADAPTER_PATH,
+    trust_remote_code=True
 )
 
-# 모델 로딩 방식 변경
-device = "cuda" if torch.cuda.is_available() else "cpu"
+print("베이스 모델 로드 중...")
 model = AutoModelForCausalLM.from_pretrained(
-    MODEL_PATH,
+    BASE_MODEL_PATH,
+    device_map="auto",
     trust_remote_code=True,
-    device_map="auto",  # 자동 디바이스 매핑 사용
-    quantization_config=quantization_config,
-    low_cpu_mem_usage=True
+    torch_dtype=torch.float16,
+    offload_buffers=True
+)
+
+print("LoRA 어댑터 로드 중...")
+model = PeftModel.from_pretrained(
+    model, 
+    ADAPTER_PATH,
+    offload_buffers=True
 )
 model.eval()
 
 class Query(BaseModel):
     text: str
+    history: Optional[List[Dict[str, str]]] = []
     max_length: Optional[int] = 2048
     temperature: Optional[float] = 0.7
     top_p: Optional[float] = 0.9
@@ -44,17 +52,71 @@ class Query(BaseModel):
 class Response(BaseModel):
     response: str
 
+def format_chat_prompt(text: str, history: List[Dict[str, str]] = None) -> str:
+    """채팅 프롬프트를 포맷팅합니다."""
+    if history is None:
+        history = []
+    
+    # 고정된 챗봇 설정 프롬프트
+    chat_prompt = """당신은 Qwen이라는 AI 어시스턴트입니다. 사용자의 질문에 친절하고 유용하게 답변해 주세요. 
+당신은 대화 모드로 작동하며, 번역 모드가 아닙니다. 번역을 요청받더라도 번역 형식(Human: ... Assistant: ...)으로 응답하지 말고, 
+직접 번역 결과만 제공하세요. 번역 지시문을 포함하지 마세요."""
+    
+    formatted_prompt = f"<|im_start|>system\n{chat_prompt}<|im_end|>\n"
+    
+    # 대화 기록 추가 (최대 3개)
+    recent_history = history[-3:] if history else []
+    for msg in recent_history:
+        role = msg.get("role", "")
+        content = msg.get("content", "")
+        if role == "user":
+            formatted_prompt += f"<|im_start|>user\n{content}<|im_end|>\n"
+        elif role == "assistant":
+            formatted_prompt += f"<|im_start|>assistant\n{content}<|im_end|>\n"
+    
+    # 현재 사용자 메시지 추가
+    formatted_prompt += f"<|im_start|>user\n{text}<|im_end|>\n"
+    formatted_prompt += "<|im_start|>assistant\n"
+    
+    return formatted_prompt
+
+def clean_response(text: str) -> str:
+    """응답 텍스트를 정리합니다."""
+    # 번역 관련 패턴 제거
+    patterns = [
+        r"Translate the following .+?\.",
+        r"Please translate .+?\.",
+        r"다음 .+? 번역하세요\.",
+        r"번역: ",
+        r"^Human: .+?\n?Assistant: ",
+        r"<\|im_end\|>.*"
+    ]
+    
+    result = text
+    for pattern in patterns:
+        result = re.sub(pattern, "", result, flags=re.DOTALL)
+    
+    # 응답의 시작과 끝의 공백 제거
+    result = result.strip()
+    
+    return result
+
 @app.post("/api/chat", response_model=Response)
 async def chat(query: Query):
     try:
+        # 입력 프롬프트 생성
+        prompt = format_chat_prompt(query.text, query.history)
+        
         # 입력 텍스트 토큰화
-        inputs = tokenizer(query.text, return_tensors="pt").to(device)
+        inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
         
         # 생성 파라미터 설정
         gen_kwargs = {
-            "max_length": query.max_length,
+            "max_new_tokens": min(query.max_length, 2048),  # 출력 토큰 수 제한
             "temperature": query.temperature,
             "top_p": query.top_p,
+            "repetition_penalty": 1.2,  # 반복 방지
+            "do_sample": True,
             "pad_token_id": tokenizer.pad_token_id,
             "eos_token_id": tokenizer.eos_token_id,
         }
@@ -63,10 +125,25 @@ async def chat(query: Query):
         with torch.no_grad():
             outputs = model.generate(**inputs, **gen_kwargs)
         
-        # 생성된 텍스트 디코딩
-        response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        # 생성된 텍스트 디코딩 및 입력 프롬프트 제거
+        full_response = tokenizer.decode(outputs[0], skip_special_tokens=False)
+        response_text = full_response[len(prompt):]
         
-        return Response(response=response)
+        # Qwen 모델의 특수 토큰 제거
+        response_text = response_text.replace("<|im_end|>", "").strip()
+        
+        # 응답 정리
+        clean_text = clean_response(response_text)
+        
+        # 번역 작업이 요청된 경우 직접 번역
+        if "번역" in query.text or "translate" in query.text.lower():
+            # 번역 패턴 검출
+            translation_request = re.search(r"[\"'](.+?)[\"']", query.text)
+            if translation_request:
+                # 번역이 요청된 텍스트를 직접 응답으로 반환
+                return Response(response=translation_request.group(1))
+        
+        return Response(response=clean_text)
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

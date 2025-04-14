@@ -1,8 +1,9 @@
 import streamlit as st
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from peft import PeftModel
 import os
-import asyncio
+import re
 
 # 페이지 설정
 st.set_page_config(
@@ -12,41 +13,82 @@ st.set_page_config(
 )
 
 def load_model():
-    model_path = "/qwen25-14b"
-    tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+    base_model_path = "/qwen25-14b"
+    adapter_path = "qlora_output"  # LoRA 어댑터 경로
     
-    # 모델 로딩 전에 환경 변수 설정
-    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512,expandable_segments:True"
-    
-    # 메타 디바이스 사용 비활성화
-    os.environ["ACCELERATE_USE_META_DEVICE"] = "0"
-    
-    # 오프로딩 비활성화
-    os.environ["ACCELERATE_OFFLOAD_WEIGHTS"] = "0"
-    
-    # 디스패치 기능 비활성화
-    os.environ["ACCELERATE_DISPATCH_MODEL"] = "0"
-    
-    # 8비트 양자화 설정
-    quantization_config = BitsAndBytesConfig(
-        load_in_8bit=True,
-        llm_int8_threshold=6.0,
-        llm_int8_has_fp16_weight=False
+    print("토크나이저 로드 중...")
+    tokenizer = AutoTokenizer.from_pretrained(
+        adapter_path,
+        trust_remote_code=True
     )
     
-    # 모델 로드
+    print("베이스 모델 로드 중...")
     model = AutoModelForCausalLM.from_pretrained(
-        model_path,
+        base_model_path,
         device_map="auto",
         trust_remote_code=True,
-        quantization_config=quantization_config,
-        low_cpu_mem_usage=True
+        torch_dtype=torch.float16,
+        offload_buffers=True
     )
     
-    # LoRA 파라미터 로딩 후 모델을 eval 모드로 설정
-    model.eval()
+    print("LoRA 어댑터 로드 중...")
+    model = PeftModel.from_pretrained(
+        model, 
+        adapter_path,
+        offload_buffers=True
+    )
     
+    model.eval()
     return model, tokenizer
+
+def format_chat_prompt(text: str, history=None):
+    """채팅 프롬프트를 포맷팅합니다."""
+    if history is None:
+        history = []
+    
+    # 고정된 챗봇 설정 프롬프트
+    chat_prompt = """당신은 Qwen이라는 AI 어시스턴트입니다. 사용자의 질문에 친절하고 유용하게 답변해 주세요. 
+당신은 대화 모드로 작동하며, 번역 모드가 아닙니다. 번역을 요청받더라도 번역 형식(Human: ... Assistant: ...)으로 응답하지 말고, 
+직접 번역 결과만 제공하세요. 번역 지시문을 포함하지 마세요."""
+    
+    formatted_prompt = f"<|im_start|>system\n{chat_prompt}<|im_end|>\n"
+    
+    # 대화 기록 추가 (최대 3개)
+    recent_history = history[-3:] if history else []
+    for msg in recent_history:
+        role = msg.get("role", "")
+        content = msg.get("content", "")
+        if role == "user":
+            formatted_prompt += f"<|im_start|>user\n{content}<|im_end|>\n"
+        elif role == "assistant":
+            formatted_prompt += f"<|im_start|>assistant\n{content}<|im_end|>\n"
+    
+    # 현재 사용자 메시지 추가
+    formatted_prompt += f"<|im_start|>user\n{text}<|im_end|>\n"
+    formatted_prompt += "<|im_start|>assistant\n"
+    
+    return formatted_prompt
+
+def clean_response(text: str) -> str:
+    """응답 텍스트를 정리합니다."""
+    # 번역 관련 패턴 제거
+    patterns = [
+        r"Translate the following .+?\.",
+        r"Please translate .+?\.",
+        r"다음 .+? 번역하세요\.",
+        r"번역: ",
+        r"^Human: .+?\n?Assistant: ",
+        r"<\|im_end\|>.*"
+    ]
+    
+    result = text
+    for pattern in patterns:
+        result = re.sub(pattern, "", result, flags=re.DOTALL)
+    
+    # 응답의 시작과 끝의 공백 제거
+    result = result.strip()
+    
+    return result
 
 def generate_response(prompt, history=None):
     if history is None:
@@ -59,29 +101,11 @@ def generate_response(prompt, history=None):
     model = st.session_state.model
     tokenizer = st.session_state.tokenizer
     
-    # 간결한 대화 형식으로 변경
-    input_text = ""
-    for i, msg in enumerate(history):
-        if i >= len(history) - 3:  # 최근 3개의 메시지만 포함
-            try:
-                role = msg.get('role', 'user' if i % 2 == 0 else 'assistant')
-                content = msg.get('content', '')
-                role_text = 'Human' if role == 'user' else 'Assistant'
-                input_text += f"{role_text}: {content}\n"
-            except Exception as e:
-                st.error(f"메시지 처리 중 오류 발생: {str(e)}")
-                
-    input_text += f"Human: {prompt}\nAssistant: "
+    # 입력 프롬프트 생성
+    input_text = format_chat_prompt(prompt, history)
     
     # 토큰화 및 생성
     inputs = tokenizer(input_text, return_tensors="pt").to(model.device)
-    
-    # 비동기 처리를 위한 설정
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
     
     with torch.no_grad():
         outputs = model.generate(
@@ -89,13 +113,31 @@ def generate_response(prompt, history=None):
             max_new_tokens=512,
             temperature=0.7,
             top_p=0.9,
-            repetition_penalty=1.1,
+            repetition_penalty=1.2,  # 반복 방지
+            do_sample=True,
             pad_token_id=tokenizer.pad_token_id,
             eos_token_id=tokenizer.eos_token_id
         )
     
-    response = tokenizer.decode(outputs[0][inputs.input_ids.shape[1]:], skip_special_tokens=True)
-    return response.strip()
+    # 생성된 텍스트 디코딩 및 입력 프롬프트 제거
+    full_response = tokenizer.decode(outputs[0], skip_special_tokens=False)
+    response_text = full_response[len(input_text):]
+    
+    # Qwen 모델의 특수 토큰 제거
+    response_text = response_text.replace("<|im_end|>", "").strip()
+    
+    # 응답 정리
+    clean_text = clean_response(response_text)
+    
+    # 번역 작업이 요청된 경우 직접 번역
+    if "번역" in prompt or "translate" in prompt.lower():
+        # 번역 패턴 검출
+        translation_request = re.search(r"[\"'](.+?)[\"']", prompt)
+        if translation_request:
+            # 번역이 요청된 텍스트를 직접 응답으로 반환
+            return translation_request.group(1)
+    
+    return clean_text
 
 # 세션 상태 초기화
 if "messages" not in st.session_state:
