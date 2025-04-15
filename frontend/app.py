@@ -41,17 +41,30 @@ class LLMChatHandler():
                 print(f"어댑터 로드 중: {model_id}")
                 model.load_adapter(model_id)
                 
-                # 모든 파라미터를 CPU로 로드
-                print("모든 파라미터를 CPU로 로드 중...")
-                for param in model.parameters():
+                # 모델 병합 후 사용
+                print("모델 병합 중...")
+                # 병합된 모델을 저장할 디렉토리 생성
+                merged_model_dir = model_id + "_merged"
+                os.makedirs(merged_model_dir, exist_ok=True)
+                
+                # 모델 병합 및 저장
+                print("모델 병합 및 저장 중...")
+                # 병합된 모델을 저장하기 전에 모든 파라미터를 CPU로 로드
+                for name, param in model.named_parameters():
                     if param.device.type == "meta":
+                        print(f"메타 텐서 감지: {name}")
+                        # 메타 텐서를 CPU로 로드
                         param.to("cpu")
                 
                 # 모델 저장
-                print("결합된 모델 저장 중...")
-                model.save_pretrained(model_id + "_merged")
-                model_id = model_id + "_merged"
-                print(f"결합된 모델 저장됨: {model_id}")
+                print("병합된 모델 저장 중...")
+                model.save_pretrained(merged_model_dir)
+                
+                # 모델 ID를 병합된 모델 디렉토리로 설정
+                model_id = merged_model_dir
+                print(f"병합된 모델 저장됨: {model_id}")
+            else:
+                print("어댑터 모델이 감지되지 않았습니다. 기본 모델을 사용합니다.")
         else:
             print(f"Hugging Face 모델 ID 사용: {model_id}")
             self.tokenizer = AutoTokenizer.from_pretrained(model_id)
@@ -75,7 +88,23 @@ class LLMChatHandler():
 
         # GPU 개수 확인
         num_gpus = torch.cuda.device_count()
-        tensor_parallel_size = min(num_gpus, 2)  # 최대 2개 GPU 사용
+        print(f"사용 가능한 GPU 개수: {num_gpus}")
+        
+        # GPU 메모리 확인
+        if num_gpus > 0:
+            gpu_memory = torch.cuda.get_device_properties(0).total_memory / (1024**3)  # GB 단위
+            print(f"GPU 메모리: {gpu_memory:.2f} GB")
+            
+            # GPU 메모리가 충분하면 병렬화를 사용하지 않음
+            tensor_parallel_size = 1
+            # GPU 메모리 활용도 높임
+            gpu_memory_utilization = 0.95
+            # 배치 처리 최적화
+            max_num_batched_tokens = 16384
+        else:
+            tensor_parallel_size = 1
+            gpu_memory_utilization = 0.9
+            max_num_batched_tokens = 4096
         
         engine_args = AsyncEngineArgs(
             model=model_id,
@@ -88,9 +117,9 @@ class LLMChatHandler():
             load_format=_guess_load_format(model_id=model_id),
             quantization=_guess_quantization(model_id=model_id),
             dtype=dtype,
-            gpu_memory_utilization=0.9,
-            tensor_parallel_size=tensor_parallel_size,  # 모델 병렬화
-            max_num_batched_tokens=8192,  # 배치 처리 최적화
+            gpu_memory_utilization=gpu_memory_utilization,  # GPU 메모리 활용도 높임
+            tensor_parallel_size=tensor_parallel_size,  # 단일 GPU 사용
+            max_num_batched_tokens=max_num_batched_tokens,  # 배치 처리 최적화
         )
         self.vllm_engine = AsyncLLMEngine.from_engine_args(engine_args)
 
