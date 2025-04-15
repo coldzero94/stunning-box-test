@@ -40,6 +40,9 @@ class LLMChatHandler():
             load_format=_guess_load_format(model_id=model_id),
             quantization=_guess_quantization(model_id=model_id),
             dtype=dtype,
+            gpu_memory_utilization=0.9,
+            tensor_parallel_size=1,
+            max_num_batched_tokens=4096,
         )
         self.vllm_engine = AsyncLLMEngine.from_engine_args(engine_args)
 
@@ -48,10 +51,11 @@ class LLMChatHandler():
         prompt = self.tokenizer.apply_chat_template(history, tokenize=False, add_generation_prompt=True)
         sampling_params = SamplingParams(
             stop_token_ids=self.terminators,
-            max_tokens=2048,
-            temperature=0.6,
-            top_p=0.9,
-            repetition_penalty=1.2)
+            max_tokens=1024,
+            temperature=0.3,
+            top_p=0.95,
+            top_k=50,
+            repetition_penalty=1.1)
         results_generator = self.vllm_engine.generate(prompt, sampling_params, random_uuid())
         async for request_output in results_generator:
             response_txt = ""
