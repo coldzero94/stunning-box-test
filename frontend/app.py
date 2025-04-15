@@ -23,18 +23,18 @@ class LLMChatHandler():
             has_adapter = os.path.exists(os.path.join(model_id, "adapter_model.safetensors"))
             if has_adapter:
                 print("어댑터 모델 감지됨. 기본 모델과 결합합니다.")
-                # 기본 모델 로드 (Qwen/Qwen2.5-14B-Instruct)
                 base_model = "Qwen/Qwen2.5-14B-Instruct"
                 print(f"기본 모델 로드 중: {base_model}")
                 
-                # 메모리 효율적인 로딩을 위한 설정
+                # CUDA를 사용하고 GPU 메모리를 중간 이상으로 사용
+                print("CUDA를 사용하고 GPU 메모리를 중간 이상으로 사용합니다.")
                 model = AutoModelForCausalLM.from_pretrained(
                     base_model,
                     trust_remote_code=True,
                     torch_dtype=torch.bfloat16,
-                    device_map="auto",
-                    offload_folder="offload_folder",
-                    offload_state_dict=True
+                    device_map="cuda",  # CUDA 사용
+                    offload_folder=None,  # 오프로드 폴더 사용 안 함
+                    offload_state_dict=False  # 오프로드 상태 딕셔너리 사용 안 함
                 )
                 
                 # 어댑터 로드 및 적용
