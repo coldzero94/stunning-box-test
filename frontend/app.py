@@ -3,7 +3,7 @@ import os
 import torch
 from typing import Optional
 import gradio as gr
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, AutoModelForCausalLM
 from vllm import SamplingParams
 from vllm.engine.arg_utils import AsyncEngineArgs
 from vllm.engine.async_llm_engine import AsyncLLMEngine
@@ -11,7 +11,41 @@ from vllm.utils import random_uuid
 
 class LLMChatHandler():
     def __init__(self, model_id: str, max_num_seqs: int, max_model_len: int, dtype: str):
-        self.tokenizer = AutoTokenizer.from_pretrained(model_id)
+        # 로컬 모델 경로인지 확인
+        is_local_path = os.path.exists(model_id) and os.path.isdir(model_id)
+        
+        # 토크나이저 로드
+        if is_local_path:
+            print(f"로컬 모델 경로 사용: {model_id}")
+            self.tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
+            
+            # 어댑터 모델인지 확인
+            has_adapter = os.path.exists(os.path.join(model_id, "adapter_model.safetensors"))
+            if has_adapter:
+                print("어댑터 모델 감지됨. 기본 모델과 결합합니다.")
+                # 기본 모델 로드 (Qwen/Qwen2.5-14B-Instruct)
+                base_model = "Qwen/Qwen2.5-14B-Instruct"
+                print(f"기본 모델 로드 중: {base_model}")
+                model = AutoModelForCausalLM.from_pretrained(
+                    base_model,
+                    trust_remote_code=True,
+                    torch_dtype=torch.bfloat16,
+                    device_map="auto"
+                )
+                
+                # 어댑터 로드 및 적용
+                print(f"어댑터 로드 중: {model_id}")
+                model.load_adapter(model_id)
+                
+                # 모델 저장
+                print("결합된 모델 저장 중...")
+                model.save_pretrained(model_id + "_merged")
+                model_id = model_id + "_merged"
+                print(f"결합된 모델 저장됨: {model_id}")
+        else:
+            print(f"Hugging Face 모델 ID 사용: {model_id}")
+            self.tokenizer = AutoTokenizer.from_pretrained(model_id)
+            
         self.terminators = [
             self.tokenizer.eos_token_id,
             self.tokenizer.convert_tokens_to_ids("<|eot_id|>")
