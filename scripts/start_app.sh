@@ -17,16 +17,34 @@ else
     exit 1
 fi
 
-# streamlit 설치 확인 및 설치
-if ! command -v streamlit &> /dev/null; then
-    echo "streamlit 설치 중..."
-    pip install streamlit
+# 필요한 패키지 설치 확인 및 설치
+echo "필요한 패키지 설치 확인 중..."
+pip install -r requirements.txt
+
+# 모델 설정
+MODEL_PATH="/qwen25-14b"  # 로컬 모델 경로
+PORT=8000
+MAX_NUM_SEQS=16
+MAX_MODEL_LEN=32767
+DTYPE="bfloat16"  # 또는 "float16", "auto"
+
+# 모델 디렉토리 확인
+if [ ! -d "$MODEL_PATH" ]; then
+    echo "모델 디렉토리를 찾을 수 없습니다: $MODEL_PATH"
+    exit 1
 fi
+
+echo "모델 경로: $MODEL_PATH"
 
 # frontend 디렉토리로 이동
 cd "${PROJECT_ROOT}/frontend"
 echo "현재 디렉토리: $(pwd)"
 
-# Streamlit 실행
-echo "Streamlit 시작 중..."
-streamlit run streamlit_app.py --server.port 8000 --server.fileWatcherType none
+# Gradio 실행
+echo "Gradio 시작 중..."
+python app.py \
+    --model-id "$MODEL_PATH" \
+    --port "$PORT" \
+    --max-num-seqs "$MAX_NUM_SEQS" \
+    --max-model-len "$MAX_MODEL_LEN" \
+    --dtype "$DTYPE"
