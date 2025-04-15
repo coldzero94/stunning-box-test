@@ -26,16 +26,26 @@ class LLMChatHandler():
                 # 기본 모델 로드 (Qwen/Qwen2.5-14B-Instruct)
                 base_model = "Qwen/Qwen2.5-14B-Instruct"
                 print(f"기본 모델 로드 중: {base_model}")
+                
+                # 메모리 효율적인 로딩을 위한 설정
                 model = AutoModelForCausalLM.from_pretrained(
                     base_model,
                     trust_remote_code=True,
                     torch_dtype=torch.bfloat16,
-                    device_map="auto"
+                    device_map="auto",
+                    offload_folder="offload_folder",
+                    offload_state_dict=True
                 )
                 
                 # 어댑터 로드 및 적용
                 print(f"어댑터 로드 중: {model_id}")
                 model.load_adapter(model_id)
+                
+                # 모든 파라미터를 CPU로 로드
+                print("모든 파라미터를 CPU로 로드 중...")
+                for param in model.parameters():
+                    if param.device.type == "meta":
+                        param.to("cpu")
                 
                 # 모델 저장
                 print("결합된 모델 저장 중...")
@@ -56,13 +66,17 @@ class LLMChatHandler():
                 return "awq"
             if "bnb" in model_id:
                 return "bitsandbytes"
-            return None
+            return "awq"  # 기본적으로 AWQ 양자화 사용
 
         def _guess_load_format(model_id) -> Optional[str]:
             if "bnb" in model_id:
                 return "bitsandbytes"
             return "auto"
 
+        # GPU 개수 확인
+        num_gpus = torch.cuda.device_count()
+        tensor_parallel_size = min(num_gpus, 2)  # 최대 2개 GPU 사용
+        
         engine_args = AsyncEngineArgs(
             model=model_id,
             task="generate",
@@ -75,8 +89,8 @@ class LLMChatHandler():
             quantization=_guess_quantization(model_id=model_id),
             dtype=dtype,
             gpu_memory_utilization=0.9,
-            tensor_parallel_size=1,
-            max_num_batched_tokens=4096,
+            tensor_parallel_size=tensor_parallel_size,  # 모델 병렬화
+            max_num_batched_tokens=8192,  # 배치 처리 최적화
         )
         self.vllm_engine = AsyncLLMEngine.from_engine_args(engine_args)
 
