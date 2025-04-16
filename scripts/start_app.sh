@@ -17,10 +17,6 @@ else
     exit 1
 fi
 
-# 필요한 패키지 설치 확인 및 설치
-echo "필요한 패키지 설치 확인 중..."
-pip install -r requirements.txt
-
 # 모델 설정
 MODEL_PATH="/qwen25-14b"  # 로컬 모델 경로
 PORT=8000
