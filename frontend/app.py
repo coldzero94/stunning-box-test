@@ -71,6 +71,9 @@ class LLMChatHandler():
                     yield "⚠️ 입력이 너무 깁니다. 더 짧은 텍스트로 시도해주세요."
                     return
                 
+                # 답변 생성 중 메시지 실시간 표시
+                yield "⏳ 답변을 생성 중입니다..."
+                
                 with torch.no_grad():
                     outputs = self.model.generate(
                         **inputs,
@@ -106,7 +109,7 @@ def main(args):
                 "<h3>Interact with LLM using chat interface!<br></h3>"
                 f"<h3>Original model: <a href='https://huggingface.co/{args.model_id}' target='_blank'>{args.model_id}</a></h3>")
         cb = gr.Chatbot(type="messages", scale=20, render_markdown=False)
-        gr.ChatInterface(hdlr.chat_function, chatbot=cb)
+        gr.ChatInterface(hdlr.chat_function, chatbot=cb, stream=True)
 
     demo.queue().launch(server_name="0.0.0.0", server_port=args.port)
 

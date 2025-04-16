@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import torch
@@ -6,6 +7,10 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import PeftModel
 import os
 import re
+import asyncio
+from typing import Iterator, AsyncIterator
+from threading import Thread
+from transformers import TextIteratorStreamer
 
 app = FastAPI()
 
@@ -47,6 +52,7 @@ class Query(BaseModel):
     max_length: Optional[int] = 2048
     temperature: Optional[float] = 0.7
     top_p: Optional[float] = 0.9
+    stream: Optional[bool] = False
 
 class Response(BaseModel):
     response: str
@@ -74,12 +80,53 @@ def format_chat_prompt(text: str, history: List[Dict[str, str]] = None) -> str:
     
     return formatted_prompt
 
+def generate_stream(prompt, gen_kwargs):
+    """스트리밍 방식으로 텍스트를 생성합니다."""
+    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+    streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=False)
+    
+    gen_kwargs["streamer"] = streamer
+    
+    thread = Thread(target=lambda: model.generate(**inputs, **gen_kwargs))
+    thread.start()
+    
+    generated_text = ""
+    for text in streamer:
+        chunk = text.replace("<|im_end|>", "")
+        generated_text += chunk
+        yield f"data: {chunk}\n\n"
+    
+    yield "data: [DONE]\n\n"
+    thread.join()
+    
+    del inputs
+    torch.cuda.empty_cache()
+
 @app.post("/api/chat", response_model=Response)
 async def chat(query: Query):
     try:
         # 입력 프롬프트 생성
         prompt = format_chat_prompt(query.text, query.history)
         
+        # 스트리밍 응답 확인
+        if query.stream:
+            # 생성 파라미터 설정
+            gen_kwargs = {
+                "max_new_tokens": 3000,
+                "temperature": query.temperature,
+                "top_p": query.top_p,
+                "repetition_penalty": 1.2,
+                "do_sample": True,
+                "pad_token_id": tokenizer.pad_token_id,
+                "eos_token_id": tokenizer.eos_token_id,
+            }
+            
+            return StreamingResponse(
+                generate_stream(prompt, gen_kwargs),
+                media_type="text/event-stream"
+            )
+        
+        # 일반 응답 처리 (스트리밍 아닌 경우)
         # 입력 텍스트 토큰화
         inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
         
