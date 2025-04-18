@@ -134,11 +134,10 @@ def main(args):
     print(f"Loading the model {args.model_id}...")
     hdlr = LLMChatHandler(model_id=args.model_id, max_num_seqs=args.max_num_seqs, max_model_len=args.max_model_len, dtype=args.dtype)
 
-    with gr.Blocks(title=f"🤗 Chatbot with {args.model_id}", fill_height=True) as demo:
+    with gr.Blocks(title=f"🤗 스터닝 박스 챗봇", fill_height=True) as demo:
         gr.Markdown(
-            f"<h2>Chatbot with 🤗 {args.model_id} 🤗</h2>"
-            "<h3>Interact with LLM using chat interface!<br></h3>"
-            f"<h3>Original model: <a href='https://huggingface.co/{args.model_id}' target='_blank'>{args.model_id}</a></h3>"
+            f"<h2>스터닝 박스 챗봇</h2>"
+            "<h3>스터닝 박스 챗봇을 사용해보세요!<br></h3>"
         )
         
         # type='messages' 명시하여 경고 제거
