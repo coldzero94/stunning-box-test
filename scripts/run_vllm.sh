@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # VLLM 설치
 pip install vllm
 
@@ -6,7 +8,8 @@ python -m vllm.entrypoints.openai.api_server \
   --model Qwen/Qwen2.5-14B-Instruct \
   --host 0.0.0.0 \
   --port 8000 \
-  --peft-model-path /qwen25-14b \
+  --enable-lora \
+  --qlora-adapter-name-or-path /qwen25-14b \
   --dtype half \
   --max-model-len 4096 \
   --trust-remote-code \
