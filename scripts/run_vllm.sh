@@ -15,5 +15,8 @@ python -m vllm.entrypoints.openai.api_server \
   --dtype half \
   --max-model-len 4096 \
   --trust-remote-code \
-  --max-num-seqs 256 \
-  --gpu-memory-utilization 0.9
+  --max-num-seqs 64 \
+  --gpu-memory-utilization 0.7
+
+
+echo "VLLM 서버가 성공적으로 시작되었습니다."
