@@ -184,7 +184,7 @@ def main(args):
         
         clear = gr.Button("대화 지우기")
         
-        def user_message(message, history):
+        def user_message(message, history, status_text=None):
             """사용자 메시지를 추가하는 함수"""
             if message.strip() == "":
                 return "", history, "✨ 준비 완료"
@@ -197,7 +197,7 @@ def main(args):
             history.append({"role": "user", "content": message})
             return "", history, "⌛ 응답 생성 중..."
         
-        def bot_response(history, status_text):
+        def bot_response(history, status_text=None):
             """봇 응답을 생성하는 함수"""
             if not history:
                 yield history, "✨ 준비 완료"
