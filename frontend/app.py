@@ -1,11 +1,12 @@
 import argparse
 import os
 import torch
-from typing import Optional
+from typing import Optional, List, Dict, Any
 import gradio as gr
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, TextIteratorStreamer
 from peft import PeftModel
-from threading import Lock
+from threading import Lock, Thread
+import time
 
 # CUDA 메모리 설정 (최소화)
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
@@ -58,8 +59,14 @@ class LLMChatHandler():
         self.repetition_penalty = 1.1
 
     async def chat_function(self, message, history):
-        history.append({"role": "user", "content": message})
-        prompt = self.tokenizer.apply_chat_template(history, tokenize=False, add_generation_prompt=True)
+        history_format = []
+        for h in history:
+            history_format.append({"role": "user", "content": h[0]})
+            if h[1] is not None:
+                history_format.append({"role": "assistant", "content": h[1]})
+        
+        history_format.append({"role": "user", "content": message})
+        prompt = self.tokenizer.apply_chat_template(history_format, tokenize=False, add_generation_prompt=True)
         
         with self.lock:
             try:
@@ -74,26 +81,51 @@ class LLMChatHandler():
                 # 답변 생성 중 메시지 실시간 표시
                 yield "⏳ 답변을 생성 중입니다..."
                 
-                with torch.no_grad():
-                    outputs = self.model.generate(
-                        **inputs,
-                        max_new_tokens=self.max_new_tokens,
-                        temperature=self.temperature,
-                        top_p=self.top_p,
-                        top_k=self.top_k,
-                        repetition_penalty=self.repetition_penalty,
-                        do_sample=True,
-                        pad_token_id=self.tokenizer.pad_token_id,
-                        eos_token_id=self.tokenizer.eos_token_id
-                    )
-                    response = self.tokenizer.decode(outputs[0][inputs.input_ids.shape[1]:], skip_special_tokens=True)
+                # 스트리머 설정 (토큰 단위 스트리밍)
+                streamer = TextIteratorStreamer(self.tokenizer, skip_prompt=True, skip_special_tokens=True)
+                
+                # 생성 파라미터 설정
+                gen_kwargs = {
+                    "input_ids": inputs.input_ids,
+                    "attention_mask": inputs.attention_mask,
+                    "max_new_tokens": self.max_new_tokens,
+                    "temperature": self.temperature,
+                    "top_p": self.top_p,
+                    "top_k": self.top_k,
+                    "repetition_penalty": self.repetition_penalty,
+                    "do_sample": True,
+                    "pad_token_id": self.tokenizer.pad_token_id,
+                    "eos_token_id": self.tokenizer.eos_token_id,
+                    "streamer": streamer
+                }
+                
+                # 별도 스레드에서 생성 실행
+                thread = Thread(target=self.model.generate, kwargs=gen_kwargs)
+                thread.start()
+                
+                # 첫 번째 토큰 대기
+                first_token = True
+                generated_text = ""
+                
+                # 토큰 스트리밍
+                for new_text in streamer:
+                    if first_token:
+                        # 첫 번째 토큰이면 "생성 중" 메시지를 대체
+                        generated_text = new_text
+                        first_token = False
+                    else:
+                        # 이후 토큰은 누적
+                        generated_text += new_text
+                    
+                    # 각 토큰 출력
+                    yield generated_text
+                
+                # 스레드 종료 대기
+                thread.join()
                 
                 # 메모리 정리
                 del inputs
-                del outputs
                 torch.cuda.empty_cache()
-                
-                yield response
                 
             except Exception as e:
                 yield f"Error: {str(e)}"
@@ -108,8 +140,33 @@ def main(args):
                 f"<h2>Chatbot with 🤗 {args.model_id} 🤗</h2>"
                 "<h3>Interact with LLM using chat interface!<br></h3>"
                 f"<h3>Original model: <a href='https://huggingface.co/{args.model_id}' target='_blank'>{args.model_id}</a></h3>")
-        cb = gr.Chatbot(type="messages", scale=20, render_markdown=False)
-        gr.ChatInterface(hdlr.chat_function, chatbot=cb)
+        
+        chatbot = gr.Chatbot(scale=20, render_markdown=True)
+        
+        with gr.Row():
+            with gr.Column(scale=8):
+                msg = gr.Textbox(
+                    show_label=False,
+                    placeholder="메시지를 입력하세요...",
+                    container=False
+                )
+            with gr.Column(scale=1):
+                submit = gr.Button("전송")
+        
+        clear = gr.Button("대화 지우기")
+        
+        def user(user_message, history):
+            return "", history + [[user_message, None]]
+        
+        msg.submit(user, [msg, chatbot], [msg, chatbot], queue=False).then(
+            hdlr.chat_function, [chatbot[-1][0], chatbot], chatbot[-1][1]
+        )
+        
+        submit.click(user, [msg, chatbot], [msg, chatbot], queue=False).then(
+            hdlr.chat_function, [chatbot[-1][0], chatbot], chatbot[-1][1]
+        )
+        
+        clear.click(lambda: None, None, chatbot, queue=False)
 
     demo.queue().launch(server_name="0.0.0.0", server_port=args.port)
 
