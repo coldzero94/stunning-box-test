@@ -17,8 +17,5 @@ argparse
 bitsandbytes
 gradio
 vllm
-fastapi
-starlette
-uvicorn
 asyncio
 aiohttp

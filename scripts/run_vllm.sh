@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# VLLM 설치
-pip install vllm
-
 # 서버 직접 실행
 python -m vllm.entrypoints.openai.api_server \
   --model Qwen/Qwen2.5-14B-Instruct \
@@ -10,6 +7,7 @@ python -m vllm.entrypoints.openai.api_server \
   --port 8000 \
   --enable-lora \
   --qlora-adapter-name-or-path /qwen25-14b \
+  --quantization bitsandbytes \
   --dtype half \
   --max-model-len 4096 \
   --trust-remote-code \
