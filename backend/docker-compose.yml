@@ -1,0 +1,28 @@
+version: '3'
+
+services:
+  vllm-server:
+    image: vllm/vllm-openai:latest
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512,expandable_segments:True
+    volumes:
+      - /qwen25-14b:/qwen25-14b  # 파인튜닝된 어댑터 경로 마운트
+    command: >
+      --model Qwen/Qwen2.5-14B-Instruct
+      --host 0.0.0.0
+      --port 8000
+      --peft-model-path /qwen25-14b
+      --dtype half
+      --max-model-len 4096
+      --trust-remote-code
+      --max-num-seqs 256
+      --gpu-memory-utilization 0.9
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu] 
