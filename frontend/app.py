@@ -89,7 +89,8 @@ class LLMChatHandler():
                 # 입력 토큰 수 확인
                 input_token_length = inputs.input_ids.shape[1]
                 if input_token_length > 3000:
-                    return "⚠️ 입력이 너무 깁니다. 더 짧은 텍스트로 시도해주세요."
+                    yield "⚠️ 입력이 너무 깁니다. 더 짧은 텍스트로 시도해주세요."
+                    return
                 
                 # 스트리머 설정 (토큰 단위 스트리밍)
                 streamer = TextIteratorStreamer(self.tokenizer, skip_prompt=True, skip_special_tokens=True)
