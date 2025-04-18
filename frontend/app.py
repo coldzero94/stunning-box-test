@@ -7,6 +7,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, TextIteratorStream
 from peft import PeftModel
 from threading import Lock, Thread
 import time
+import asyncio
 
 # CUDA 메모리 설정 (최소화)
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
@@ -58,23 +59,21 @@ class LLMChatHandler():
         self.top_k = 50
         self.repetition_penalty = 1.1
 
-    def get_history_format(self, history):
-        """대화 이력을 모델에 맞는 형식으로 변환합니다."""
-        history_format = []
-        
-        for item in history:
-            if len(item) == 2:  # [user_msg, bot_msg] 형식
-                user_msg, bot_msg = item
-                history_format.append({"role": "user", "content": user_msg})
-                if bot_msg:  # None이 아닌 경우만 추가
-                    history_format.append({"role": "assistant", "content": bot_msg})
-        
-        return history_format
+    def format_chat_history(self, history):
+        """채팅 기록을 모델 입력에 맞게 포맷팅합니다."""
+        formatted = []
+        for message in history:
+            if isinstance(message, tuple) and len(message) == 2:
+                user_msg, bot_msg = message
+                formatted.append({"role": "user", "content": user_msg})
+                if bot_msg:  # None이 아닌 경우
+                    formatted.append({"role": "assistant", "content": bot_msg})
+        return formatted
 
-    async def chat_function(self, message, history):
-        """대화 함수"""
-        # 현재 history는 [(user_msg1, bot_msg1), (user_msg2, bot_msg2), ...] 형식
-        history_format = self.get_history_format(history)
+    def generate_response(self, message, history):
+        """동기 함수로 응답을 생성합니다."""
+        # 대화 기록 형식화
+        history_format = self.format_chat_history(history)
         
         # 현재 메시지 추가
         history_format.append({"role": "user", "content": message})
@@ -89,8 +88,7 @@ class LLMChatHandler():
                 # 입력 토큰 수 확인
                 input_token_length = inputs.input_ids.shape[1]
                 if input_token_length > 3000:
-                    yield "⚠️ 입력이 너무 깁니다. 더 짧은 텍스트로 시도해주세요."
-                    return
+                    return "⚠️ 입력이 너무 깁니다. 더 짧은 텍스트로 시도해주세요."
                 
                 # 스트리머 설정 (토큰 단위 스트리밍)
                 streamer = TextIteratorStreamer(self.tokenizer, skip_prompt=True, skip_special_tokens=True)
@@ -114,11 +112,12 @@ class LLMChatHandler():
                 thread = Thread(target=self.model.generate, kwargs=gen_kwargs)
                 thread.start()
                 
-                # 응답 저장
-                partial_message = ""
+                # 응답 누적
+                generated_text = ""
                 for new_text in streamer:
-                    partial_message += new_text
-                    yield partial_message
+                    generated_text += new_text
+                    # 일반 제너레이터로 각 토큰마다 반환
+                    yield generated_text
                 
                 # 스레드 종료 대기
                 thread.join()
@@ -140,8 +139,8 @@ def main(args):
             "<h3>스터닝 박스 챗봇을 사용해보세요!<br></h3>"
         )
         
-        # type='messages' 명시하여 경고 제거
-        chatbot = gr.Chatbot(type='messages', scale=20, render_markdown=True)
+        # 기본 튜플 형식 사용 (type 파라미터 제거)
+        chatbot = gr.Chatbot(scale=20, render_markdown=True)
         
         with gr.Row():
             msg = gr.Textbox(
@@ -154,48 +153,53 @@ def main(args):
         
         clear = gr.Button("대화 지우기")
         
-        # 간단한 인터페이스로 변경
-        def respond(message, chat_history):
+        def user_message(message, history):
+            """사용자 메시지를 추가하는 함수"""
             if message.strip() == "":
-                return "", chat_history
-            
-            chat_history.append((message, ""))
-            return "", chat_history
+                return "", history
+            return "", history + [(message, None)]
         
-        def stream_bot_response(message, chat_history):
+        def bot_response(history):
+            """봇 응답을 생성하는 함수"""
+            if not history:
+                return history
+            
+            # 마지막 사용자 메시지 가져오기
+            last_user_message = history[-1][0]
+            history_so_far = history[:-1]
+            
+            # 응답 생성
             bot_message = ""
-            for chunk in hdlr.chat_function(message, chat_history[:-1]):
-                bot_message = chunk
-                chat_history[-1] = (chat_history[-1][0], bot_message)
-                yield chat_history
+            for new_text in hdlr.generate_response(last_user_message, history_so_far):
+                bot_message = new_text
+                new_history = history.copy()
+                new_history[-1] = (last_user_message, bot_message)
+                yield new_history
         
         # 이벤트 연결
         msg.submit(
-            respond,
+            user_message, 
+            [msg, chatbot], 
             [msg, chatbot],
-            [msg, chatbot]
+            queue=False
         ).then(
-            stream_bot_response,
-            [msg, chatbot],
+            bot_response,
+            chatbot,
             chatbot
         )
         
         submit.click(
-            respond,
+            user_message, 
+            [msg, chatbot], 
             [msg, chatbot],
-            [msg, chatbot]
+            queue=False
         ).then(
-            stream_bot_response,
-            [msg, chatbot],
+            bot_response,
+            chatbot,
             chatbot
         )
         
-        clear.click(
-            lambda: [],
-            None,
-            chatbot,
-            queue=False
-        )
+        clear.click(lambda: [], None, chatbot, queue=False)
 
     demo.queue().launch(server_name="0.0.0.0", server_port=args.port)
 
