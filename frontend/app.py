@@ -163,8 +163,7 @@ def main(args):
 
     with gr.Blocks(title=f"🤗 스터닝 박스 챗봇", fill_height=True) as demo:
         gr.Markdown(
-            f"<h2>스터닝 박스 챗봇</h2>"
-            "<h3>스터닝 박스 챗봇을 사용해보세요!<br></h3>"
+            f"<h2>번역을 위한 에이전트</h2>"
         )
         
         # 상태 표시 추가
