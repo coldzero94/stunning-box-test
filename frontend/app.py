@@ -63,15 +63,15 @@ class LLMChatHandler():
         """채팅 기록을 모델 입력에 맞게 포맷팅합니다."""
         formatted = []
         for message in history:
-            if isinstance(message, tuple) and len(message) == 2:
-                user_msg, bot_msg = message
-                formatted.append({"role": "user", "content": user_msg})
-                if bot_msg:  # None이 아닌 경우
-                    formatted.append({"role": "assistant", "content": bot_msg})
+            if isinstance(message, dict) and "role" in message and "content" in message:
+                formatted.append(message)
         return formatted
 
     def generate_response(self, message, history):
         """동기 함수로 응답을 생성합니다."""
+        # 스트리밍 시작 시간 기록
+        start_time = time.time()
+        
         # 대화 기록 형식화
         history_format = self.format_chat_history(history)
         
@@ -88,7 +88,8 @@ class LLMChatHandler():
                 # 입력 토큰 수 확인
                 input_token_length = inputs.input_ids.shape[1]
                 if input_token_length > 3000:
-                    return "⚠️ 입력이 너무 깁니다. 더 짧은 텍스트로 시도해주세요."
+                    yield "⚠️ 입력이 너무 깁니다. 더 짧은 텍스트로 시도해주세요."
+                    return
                 
                 # 스트리머 설정 (토큰 단위 스트리밍)
                 streamer = TextIteratorStreamer(self.tokenizer, skip_prompt=True, skip_special_tokens=True)
@@ -114,13 +115,40 @@ class LLMChatHandler():
                 
                 # 응답 누적
                 generated_text = ""
+                is_first_token = True
+                token_count = 0
+                
                 for new_text in streamer:
+                    # 첫 토큰 시간 기록 (지연 시간 계산용)
+                    if is_first_token:
+                        first_token_time = time.time()
+                        is_first_token = False
+                    
                     generated_text += new_text
-                    # 일반 제너레이터로 각 토큰마다 반환
-                    yield generated_text
+                    token_count += 1
+                    
+                    # 진행 중임을 나타내는 표시
+                    yield generated_text + " ⌛"
                 
                 # 스레드 종료 대기
                 thread.join()
+                
+                # 생성 완료 시간 계산
+                end_time = time.time()
+                generation_time = end_time - start_time
+                first_token_latency = first_token_time - start_time if not is_first_token else 0
+                
+                # 생성 속도 계산 (초당 토큰)
+                if generation_time > 0:
+                    tokens_per_second = token_count / generation_time
+                else:
+                    tokens_per_second = 0
+                
+                # 생성 통계 추가
+                stats = f"\n\n---\n✅ 생성 완료 (토큰: {token_count}개, 시간: {generation_time:.2f}초, 속도: {tokens_per_second:.1f}토큰/초, 첫 토큰: {first_token_latency:.2f}초)"
+                
+                # 최종 텍스트 반환 (진행 중 표시 제거하고 통계 추가)
+                yield generated_text + stats
                 
                 # 메모리 정리
                 del inputs
@@ -139,8 +167,11 @@ def main(args):
             "<h3>스터닝 박스 챗봇을 사용해보세요!<br></h3>"
         )
         
-        # 기본 튜플 형식 사용 (type 파라미터 제거)
-        chatbot = gr.Chatbot(scale=20, render_markdown=True)
+        # 상태 표시 추가
+        status = gr.Markdown("✨ 준비 완료", elem_id="status")
+        
+        # 메시지 형식 사용으로 경고 제거
+        chatbot = gr.Chatbot(type='messages', scale=20, render_markdown=True)
         
         with gr.Row():
             msg = gr.Textbox(
@@ -156,50 +187,71 @@ def main(args):
         def user_message(message, history):
             """사용자 메시지를 추가하는 함수"""
             if message.strip() == "":
-                return "", history
-            return "", history + [(message, None)]
+                return "", history, "✨ 준비 완료"
+            
+            # 이미 history가 있으면 그대로 사용
+            if history is None:
+                history = []
+            
+            # 메시지 형식으로 추가
+            history.append({"role": "user", "content": message})
+            return "", history, "⌛ 응답 생성 중..."
         
-        def bot_response(history):
+        def bot_response(history, status_text):
             """봇 응답을 생성하는 함수"""
             if not history:
-                return history
+                yield history, "✨ 준비 완료"
+                return
             
             # 마지막 사용자 메시지 가져오기
-            last_user_message = history[-1][0]
+            last_user_message = history[-1]["content"]
             history_so_far = history[:-1]
             
             # 응답 생성
-            bot_message = ""
             for new_text in hdlr.generate_response(last_user_message, history_so_far):
-                bot_message = new_text
                 new_history = history.copy()
-                new_history[-1] = (last_user_message, bot_message)
-                yield new_history
+                
+                # 스트리밍 중인지 완료된건지 확인
+                if new_text.endswith("⌛"):
+                    status_update = "⌛ 응답 생성 중..."
+                    new_text = new_text[:-1]  # 진행 중 표시 제거
+                elif new_text.endswith("초)"):
+                    status_update = "✅ 응답 생성 완료"
+                else:
+                    status_update = "✨ 준비 완료"
+                
+                # 봇 응답 추가 (메시지 형식)
+                if len(new_history) > 0 and new_history[-1]["role"] == "assistant":
+                    new_history[-1]["content"] = new_text
+                else:
+                    new_history.append({"role": "assistant", "content": new_text})
+                
+                yield new_history, status_update
         
         # 이벤트 연결
         msg.submit(
             user_message, 
-            [msg, chatbot], 
-            [msg, chatbot],
+            [msg, chatbot, status], 
+            [msg, chatbot, status],
             queue=False
         ).then(
             bot_response,
-            chatbot,
-            chatbot
+            [chatbot, status],
+            [chatbot, status]
         )
         
         submit.click(
             user_message, 
-            [msg, chatbot], 
-            [msg, chatbot],
+            [msg, chatbot, status], 
+            [msg, chatbot, status],
             queue=False
         ).then(
             bot_response,
-            chatbot,
-            chatbot
+            [chatbot, status],
+            [chatbot, status]
         )
         
-        clear.click(lambda: [], None, chatbot, queue=False)
+        clear.click(lambda: ([], "✨ 준비 완료"), None, [chatbot, status], queue=False)
 
     demo.queue().launch(server_name="0.0.0.0", server_port=args.port)
 
