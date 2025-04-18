@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# VLLM 설치
+pip install vllm
+pip install bitsandbytes
+
 # 서버 직접 실행
 python -m vllm.entrypoints.openai.api_server \
   --model Qwen/Qwen2.5-14B-Instruct \
