@@ -58,14 +58,28 @@ class LLMChatHandler():
         self.top_k = 50
         self.repetition_penalty = 1.1
 
-    async def chat_function(self, message, history):
+    def get_history_format(self, history):
+        """대화 이력을 모델에 맞는 형식으로 변환합니다."""
         history_format = []
-        for h in history:
-            history_format.append({"role": "user", "content": h[0]})
-            if h[1] is not None:
-                history_format.append({"role": "assistant", "content": h[1]})
         
+        for item in history:
+            if len(item) == 2:  # [user_msg, bot_msg] 형식
+                user_msg, bot_msg = item
+                history_format.append({"role": "user", "content": user_msg})
+                if bot_msg:  # None이 아닌 경우만 추가
+                    history_format.append({"role": "assistant", "content": bot_msg})
+        
+        return history_format
+
+    async def chat_function(self, message, history):
+        """대화 함수"""
+        # 현재 history는 [(user_msg1, bot_msg1), (user_msg2, bot_msg2), ...] 형식
+        history_format = self.get_history_format(history)
+        
+        # 현재 메시지 추가
         history_format.append({"role": "user", "content": message})
+        
+        # 채팅 템플릿 적용
         prompt = self.tokenizer.apply_chat_template(history_format, tokenize=False, add_generation_prompt=True)
         
         with self.lock:
@@ -75,11 +89,7 @@ class LLMChatHandler():
                 # 입력 토큰 수 확인
                 input_token_length = inputs.input_ids.shape[1]
                 if input_token_length > 3000:
-                    yield "⚠️ 입력이 너무 깁니다. 더 짧은 텍스트로 시도해주세요."
-                    return
-                
-                # 답변 생성 중 메시지 실시간 표시
-                yield "⏳ 답변을 생성 중입니다..."
+                    return "⚠️ 입력이 너무 깁니다. 더 짧은 텍스트로 시도해주세요."
                 
                 # 스트리머 설정 (토큰 단위 스트리밍)
                 streamer = TextIteratorStreamer(self.tokenizer, skip_prompt=True, skip_special_tokens=True)
@@ -103,22 +113,11 @@ class LLMChatHandler():
                 thread = Thread(target=self.model.generate, kwargs=gen_kwargs)
                 thread.start()
                 
-                # 첫 번째 토큰 대기
-                first_token = True
-                generated_text = ""
-                
-                # 토큰 스트리밍
+                # 응답 저장
+                partial_message = ""
                 for new_text in streamer:
-                    if first_token:
-                        # 첫 번째 토큰이면 "생성 중" 메시지를 대체
-                        generated_text = new_text
-                        first_token = False
-                    else:
-                        # 이후 토큰은 누적
-                        generated_text += new_text
-                    
-                    # 각 토큰 출력
-                    yield generated_text
+                    partial_message += new_text
+                    yield partial_message
                 
                 # 스레드 종료 대기
                 thread.join()
@@ -135,38 +134,68 @@ def main(args):
     hdlr = LLMChatHandler(model_id=args.model_id, max_num_seqs=args.max_num_seqs, max_model_len=args.max_model_len, dtype=args.dtype)
 
     with gr.Blocks(title=f"🤗 Chatbot with {args.model_id}", fill_height=True) as demo:
-        with gr.Row():
-            gr.Markdown(
-                f"<h2>Chatbot with 🤗 {args.model_id} 🤗</h2>"
-                "<h3>Interact with LLM using chat interface!<br></h3>"
-                f"<h3>Original model: <a href='https://huggingface.co/{args.model_id}' target='_blank'>{args.model_id}</a></h3>")
+        gr.Markdown(
+            f"<h2>Chatbot with 🤗 {args.model_id} 🤗</h2>"
+            "<h3>Interact with LLM using chat interface!<br></h3>"
+            f"<h3>Original model: <a href='https://huggingface.co/{args.model_id}' target='_blank'>{args.model_id}</a></h3>"
+        )
         
-        chatbot = gr.Chatbot(scale=20, render_markdown=True)
+        # type='messages' 명시하여 경고 제거
+        chatbot = gr.Chatbot(type='messages', scale=20, render_markdown=True)
         
         with gr.Row():
-            with gr.Column(scale=8):
-                msg = gr.Textbox(
-                    show_label=False,
-                    placeholder="메시지를 입력하세요...",
-                    container=False
-                )
-            with gr.Column(scale=1):
-                submit = gr.Button("전송")
+            msg = gr.Textbox(
+                show_label=False,
+                placeholder="메시지를 입력하세요...",
+                container=False,
+                scale=8
+            )
+            submit = gr.Button("전송", scale=1)
         
         clear = gr.Button("대화 지우기")
         
-        def user(user_message, history):
-            return "", history + [[user_message, None]]
+        # 간단한 인터페이스로 변경
+        def respond(message, chat_history):
+            if message.strip() == "":
+                return "", chat_history
+            
+            chat_history.append((message, ""))
+            return "", chat_history
         
-        msg.submit(user, [msg, chatbot], [msg, chatbot], queue=False).then(
-            hdlr.chat_function, [chatbot[-1][0], chatbot], chatbot[-1][1]
+        def stream_bot_response(message, chat_history):
+            bot_message = ""
+            for chunk in hdlr.chat_function(message, chat_history[:-1]):
+                bot_message = chunk
+                chat_history[-1] = (chat_history[-1][0], bot_message)
+                yield chat_history
+        
+        # 이벤트 연결
+        msg.submit(
+            respond,
+            [msg, chatbot],
+            [msg, chatbot]
+        ).then(
+            stream_bot_response,
+            [msg, chatbot],
+            chatbot
         )
         
-        submit.click(user, [msg, chatbot], [msg, chatbot], queue=False).then(
-            hdlr.chat_function, [chatbot[-1][0], chatbot], chatbot[-1][1]
+        submit.click(
+            respond,
+            [msg, chatbot],
+            [msg, chatbot]
+        ).then(
+            stream_bot_response,
+            [msg, chatbot],
+            chatbot
         )
         
-        clear.click(lambda: None, None, chatbot, queue=False)
+        clear.click(
+            lambda: [],
+            None,
+            chatbot,
+            queue=False
+        )
 
     demo.queue().launch(server_name="0.0.0.0", server_port=args.port)
 
