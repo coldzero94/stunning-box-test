@@ -117,9 +117,9 @@ def main(args):
     print(f"VLLM 서버에 연결 중: {args.api_base_url}")
     hdlr = LLMChatHandler(api_base_url=args.api_base_url)
 
-    with gr.Blocks(title=f"🤗 스터닝 박스 챗봇", fill_height=True) as demo:
+    with gr.Blocks(title=f"스터닝 박스", fill_height=True) as demo:
         gr.Markdown(
-            f"<h2>번역을 위한 에이전트</h2>"
+            f"<h2>📦스터닝 박스📦</h2>"
         )
         
         # 상태 표시 추가
