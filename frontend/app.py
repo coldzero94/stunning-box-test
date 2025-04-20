@@ -215,8 +215,8 @@ if __name__ == "__main__":
         prog="OSS Chatbot",
         description="Run open source LLMs from HuggingFace with a simple chat interface")
 
-    parser.add_argument("--api-base-url", default="http://localhost:8000", help="VLLM 서버 API URL")
-    parser.add_argument("--port", default=7860, type=int, help="Gradio 앱 포트 번호")
+    parser.add_argument("--api-base-url", default="http://localhost:7000", help="VLLM 서버 API URL")
+    parser.add_argument("--port", default=8000, type=int, help="Gradio 앱 포트 번호")
     args = parser.parse_args()
 
     main(args) 
