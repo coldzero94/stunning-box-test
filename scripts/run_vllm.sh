@@ -1,38 +1,30 @@
 #!/bin/bash
 
+# 스크립트 디렉토리를 기준으로 설정
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+echo "====== VLLM 서버 시작 ======"
+echo "작업 디렉토리: $(pwd)"
+
 # VLLM 설치
 pip install vllm
 pip install bitsandbytes
 
-# PID 파일 설정
-PID_FILE="/tmp/vllm_server.pid"
+# 스크립트 실행 권한 부여
+chmod -R +x "$SCRIPT_DIR"
+
+# 로그 파일 설정
 LOG_FILE="/tmp/vllm_server.log"
-READY_FILE="/tmp/vllm_server_ready"
 
-# 기존 로그 및 준비 파일 제거
-rm -f "$LOG_FILE" "$READY_FILE"
+# 백그라운드에서 VLLM 서버 실행
+echo "1. VLLM 서버를 백그라운드에서 시작합니다..."
+echo "모델 로딩에는 약 7분 정도 소요될 수 있습니다."
 
-# 이미 실행 중인 서버가 있는지 확인
-if [ -f "$PID_FILE" ]; then
-    OLD_PID=$(cat "$PID_FILE")
-    if ps -p "$OLD_PID" > /dev/null; then
-        echo "VLLM 서버가 이미 실행 중입니다. (PID: $OLD_PID)"
-        echo "기존 서버를 사용하려면 계속 진행하세요."
-        echo "다시 시작하려면 먼저 다음 명령어로 종료하세요:"
-        echo "  kill $OLD_PID && rm $PID_FILE"
-        exit 0
-    else
-        echo "이전 PID 파일 발견, 하지만 서버가 실행 중이지 않습니다. 파일을 제거합니다."
-        rm "$PID_FILE"
-    fi
-fi
-
-# 서버 백그라운드로 실행
-echo "VLLM 서버를 백그라운드로 시작합니다..."
-nohup python -m vllm.entrypoints.openai.api_server \
+# 명령어 직접 실행 (백그라운드 실행 대신)
+python -m vllm.entrypoints.openai.api_server \
   --model Qwen/Qwen2.5-14B-Instruct \
   --host 0.0.0.0 \
-  --port 8000 \
+  --port 7000 \
   --enable-lora \
   --qlora-adapter-name-or-path /qwen25-14b \
   --quantization bitsandbytes \
@@ -42,89 +34,75 @@ nohup python -m vllm.entrypoints.openai.api_server \
   --max-num-seqs 8 \
   --gpu-memory-utilization 0.6 > "$LOG_FILE" 2>&1 &
 
-# 프로세스 ID 저장
-SERVER_PID=$!
-echo $SERVER_PID > "$PID_FILE"
-echo "VLLM 서버가 백그라운드로 시작되었습니다. (PID: $SERVER_PID)"
+# VLLM 서버 PID 저장
+VLLM_PID=$!
+echo $VLLM_PID > "/tmp/vllm_server.pid"
 
-# 서버가 초기 시작되었는지 확인
-echo "서버 시작을 확인하는 중..."
-MAX_RETRIES=30
+echo "VLLM 서버가 백그라운드로 시작되었습니다. (PID: $VLLM_PID)"
+echo "서버가 준비될 때까지 기다립니다..."
+
+# 서버가 준비될 때까지 대기
+echo "모델 로딩 확인 중 (약 7분 소요)..."
+
+# 첫번째 - API 서버가 응답하는지 확인
+MAX_RETRIES=100
 RETRY_COUNT=0
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    if curl -s "http://localhost:8000/ping" > /dev/null; then
-        echo "VLLM 서버 초기 시작 확인됨 - API 서버는 활성화되었습니다."
-        echo "이제 모델이 로드될 때까지 기다립니다. (약 7분 소요)"
+    if curl -s "http://localhost:7000/ping" > /dev/null; then
+        echo "API 서버 응답 확인됨 - 모델 로딩 중..."
+        SERVER_RESPONDING=true
         break
     fi
     
     RETRY_COUNT=$((RETRY_COUNT + 1))
-    echo "서버 시작 확인 중... ($RETRY_COUNT/$MAX_RETRIES)"
-    sleep 2
+    echo "API 서버 응답 대기 중... ($RETRY_COUNT/$MAX_RETRIES)"
+    sleep 5
 done
 
 if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-    echo "VLLM 서버 초기 시작에 실패했습니다. 로그를 확인하세요: $LOG_FILE"
-    echo "백그라운드에서 계속 시작을 시도합니다."
-else
-    # 로그 모니터링 함수를 백그라운드로 실행하여 모델 로딩 완료 감지
-    (
-        # 로딩 완료 메시지 패턴들
-        PATTERNS=(
-            "Engine 000: Avg prompt throughput"
-            "Application startup complete"
-        )
-        
-        echo "모델 로딩 진행 상황을 모니터링합니다..."
-        
-        while true; do
-            # 15초마다 로그 확인
-            sleep 15
-            
-            # 모든 패턴을 확인
-            for PATTERN in "${PATTERNS[@]}"; do
-                if grep -q "$PATTERN" "$LOG_FILE"; then
-                    echo "$(date) - VLLM 서버 준비 완료! 모델이 성공적으로 로드되었습니다."
-                    # 준비 완료 파일 생성
-                    echo "$(date)" > "$READY_FILE"
-                    
-                    # 로컬에서 실행 중이라면 데스크톱 알림 표시
-                    if command -v notify-send &> /dev/null; then
-                        notify-send "VLLM 서버 준비 완료" "모델이 성공적으로 로드되었습니다!"
-                    fi
-                    
-                    exit 0
-                fi
-            done
-            
-            # 실제 요청을 보내서 확인 (가벼운 요청)
-            if curl -s -X POST "http://localhost:8000/v1/chat/completions" \
-                -H "Content-Type: application/json" \
-                -d '{"model":"Qwen/Qwen2.5-14B-Instruct","messages":[{"role":"user","content":"Hello"}],"max_tokens":1}' \
-                -o /dev/null -w "%{http_code}" | grep -q "200"; then
-                
-                echo "$(date) - VLLM 서버 준비 완료! API 요청 테스트 성공."
-                # 준비 완료 파일 생성
-                echo "$(date)" > "$READY_FILE"
-                
-                # 로컬에서 실행 중이라면 데스크톱 알림 표시
-                if command -v notify-send &> /dev/null; then
-                    notify-send "VLLM 서버 준비 완료" "모델이 성공적으로 로드되었습니다!"
-                fi
-                
-                exit 0
-            fi
-            
-            echo "모델 로딩 중... 기다려 주세요."
-        done
-    ) &
-    
-    # 모니터링 프로세스 ID 저장
-    MONITOR_PID=$!
-    echo "모델 로딩 모니터링이 백그라운드에서 실행 중입니다. (PID: $MONITOR_PID)"
-    echo "서버가 준비되면 알림이 표시됩니다."
-    echo "준비 상태 확인: cat $READY_FILE"
+    echo "경고: API 서버가 응답하지 않습니다. Gradio를 계속 실행합니다."
+    echo "나중에 서버가 준비되면 자동으로 연결됩니다."
+    SERVER_RESPONDING=false
 fi
 
-echo "서버 로그: $LOG_FILE"
+# 서버가 응답하면 모델 로딩 완료 확인
+if [ "$SERVER_RESPONDING" = true ]; then
+    # 두번째 - 모델이 완전히 로드되었는지 확인
+    echo "모델 로딩이 완료될 때까지 기다립니다..."
+    
+    # 최대 5분간 모델 로딩 확인 (300초)
+    MAX_WAIT=300
+    WAIT_COUNT=0
+    MODEL_LOADED=false
+    
+    while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
+        # 서버 로그 확인
+        if grep -q "Engine 000: Avg prompt throughput" "$LOG_FILE"; then
+            echo "모델 로딩 완료됨!"
+            MODEL_LOADED=true
+            break
+        fi
+        
+        # 실제 요청으로 확인
+        if curl -s -X POST "http://localhost:7000/v1/chat/completions" \
+           -H "Content-Type: application/json" \
+           -d '{"model":"Qwen/Qwen2.5-14B-Instruct","messages":[{"role":"user","content":"Hello"}],"max_tokens":1}' \
+           -o /dev/null -w "%{http_code}" | grep -q "200"; then
+            
+            echo "모델 로딩 완료! API 요청 테스트 성공."
+            MODEL_LOADED=true
+            break
+        fi
+        
+        WAIT_COUNT=$((WAIT_COUNT + 10))
+        echo "모델 로딩 중... 기다려 주세요. ($WAIT_COUNT/$MAX_WAIT 초)"
+        sleep 10
+    done
+    
+    if [ "$MODEL_LOADED" = false ]; then
+        echo "모델 로딩 시간이 초과되었습니다. Gradio를 계속 실행합니다."
+    else
+        echo "VLLM 서버가 완전히 준비되었습니다!"
+    fi
+fi
