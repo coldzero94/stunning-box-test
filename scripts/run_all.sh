@@ -120,6 +120,7 @@ echo "현재 디렉토리: $(pwd)"
 python app.py \
     --api-base-url "http://localhost:7000" \
     --port 8000
+echo "Gradio 웹 인터페이스가 시작되었습니다."
 
 # 종료 시 VLLM 서버도 함께 종료
 echo "애플리케이션을 종료합니다..."
