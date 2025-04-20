@@ -9,34 +9,35 @@ echo "작업 디렉토리: $(pwd)"
 # 스크립트 실행 권한 부여
 chmod -R +x "$SCRIPT_DIR"
 
+# 준비 파일 설정
+READY_FILE="/tmp/vllm_server_ready"
+# 기존 준비 파일 제거
+rm -f "$READY_FILE"
+
 # VLLM 서버 시작
 echo "1. VLLM 서버 시작 중..."
 "$SCRIPT_DIR/run_vllm.sh"
 
-# 서버가 시작되었는지 확인
-echo "2. VLLM 서버 상태 확인 중..."
-MAX_RETRIES=30
-RETRY_COUNT=0
-
-while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    if curl -s "http://localhost:8000/ping" > /dev/null; then
-        echo "VLLM 서버가 준비되었습니다!"
-        break
-    fi
-    
-    RETRY_COUNT=$((RETRY_COUNT + 1))
-    echo "서버 준비 확인 중... ($RETRY_COUNT/$MAX_RETRIES)"
-    sleep 2
-done
-
-if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-    echo "경고: VLLM 서버가 준비되지 않았습니다. 로그를 확인하세요: /tmp/vllm_server.log"
-    echo "Gradio 인터페이스를 계속 시작합니다..."
-fi
+# 사용자에게 상태 알림
+echo ""
+echo "======================================"
+echo "VLLM 서버가 백그라운드에서 시작 중입니다."
+echo "모델 로딩에는 약 7분 정도 소요될 수 있습니다."
+echo ""
+echo "모델 로딩이 완료되면 다음 파일에 기록됩니다:"
+echo "  $READY_FILE"
+echo ""
+echo "로딩 완료 확인 방법: cat $READY_FILE"
+echo "로그 확인 방법: tail -f /tmp/vllm_server.log"
+echo "======================================"
+echo ""
 
 # Gradio 앱 시작
-echo "3. Gradio 웹 인터페이스 시작 중..."
+echo "2. Gradio 웹 인터페이스 시작 중..."
 echo "====== Gradio 시작 ======"
 "$SCRIPT_DIR/start_app.sh"
 
-echo "====== 종료 ======" 
+echo "====== 종료 ======"
+
+# 서버 준비 상태 확인 코드
+# (백그라운드에서 이미 모니터링 중이므로 여기서는 추가 작업 불필요) 
