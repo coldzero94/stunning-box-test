@@ -19,7 +19,7 @@ MAX_RETRIES=30
 RETRY_COUNT=0
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    if curl -s "http://localhost:8000/v1/models" > /dev/null; then
+    if curl -s "http://localhost:8000/ping" > /dev/null; then
         echo "VLLM 서버가 준비되었습니다!"
         break
     fi
