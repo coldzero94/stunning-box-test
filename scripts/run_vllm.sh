@@ -24,7 +24,7 @@ echo "모델 로딩에는 약 7분 정도 소요될 수 있습니다."
 python -m vllm.entrypoints.openai.api_server \
   --model Qwen/Qwen2.5-14B-Instruct \
   --host 0.0.0.0 \
-  --port 7000 \
+  --port 8000 \
   --enable-lora \
   --qlora-adapter-name-or-path /qwen25-14b \
   --quantization bitsandbytes \
@@ -49,7 +49,7 @@ MAX_RETRIES=100
 RETRY_COUNT=0
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    if curl -s "http://localhost:7000/ping" > /dev/null; then
+    if curl -s "http://localhost:8000/ping" > /dev/null; then
         echo "API 서버 응답 확인됨 - 모델 로딩 중..."
         SERVER_RESPONDING=true
         break
@@ -85,7 +85,7 @@ if [ "$SERVER_RESPONDING" = true ]; then
         fi
         
         # 실제 요청으로 확인
-        if curl -s -X POST "http://localhost:7000/v1/chat/completions" \
+        if curl -s -X POST "http://localhost:8000/v1/chat/completions" \
            -H "Content-Type: application/json" \
            -d '{"model":"Qwen/Qwen2.5-14B-Instruct","messages":[{"role":"user","content":"Hello"}],"max_tokens":1}' \
            -o /dev/null -w "%{http_code}" | grep -q "200"; then
