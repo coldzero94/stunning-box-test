@@ -15,6 +15,29 @@ pip install requests sseclient-py gradio
 VLLM_API_URL="http://localhost:8000"
 GRADIO_PORT=7860
 
+# PID 파일 경로
+PID_FILE="/tmp/vllm_server.pid"
+
+# 종료 시 VLLM 서버 정리 함수
+cleanup() {
+    echo "애플리케이션을 종료합니다..."
+    
+    if [ -f "$PID_FILE" ]; then
+        VLLM_PID=$(cat "$PID_FILE")
+        if ps -p "$VLLM_PID" > /dev/null; then
+            echo "VLLM 서버 종료 중 (PID: $VLLM_PID)..."
+            kill "$VLLM_PID"
+            rm "$PID_FILE"
+            echo "VLLM 서버가 종료되었습니다."
+        fi
+    fi
+    
+    exit 0
+}
+
+# 종료 신호 트랩 설정
+trap cleanup SIGINT SIGTERM
+
 # VLLM 서버가 실행 중인지 확인
 echo "VLLM 서버 연결 테스트 중..."
 if curl -s "$VLLM_API_URL/v1/models" > /dev/null; then
@@ -43,3 +66,6 @@ echo "Gradio 시작 중..."
 python app.py \
     --api-base-url "$VLLM_API_URL" \
     --port "$GRADIO_PORT"
+
+# 스크립트가 종료되면 정리 함수 호출
+cleanup
