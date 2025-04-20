@@ -17,8 +17,8 @@ chmod -R +x "$SCRIPT_DIR"
 # 로그 파일 설정
 LOG_FILE="/tmp/vllm_server.log"
 
-# 포그라운드에서 VLLM 서버 실행
-echo "1. VLLM 서버를 포그라운드에서 시작합니다..."
+# 백그라운드에서 VLLM 서버 실행
+echo "1. VLLM 서버를 백그라운드에서 시작합니다..."
 echo "모델 로딩에는 약 7분 정도 소요될 수 있습니다."
 
 # 명령어 직접 실행 (백그라운드 실행 대신)
