@@ -14,7 +14,7 @@ class LLMChatHandler():
         
         # API 서버 연결 확인
         try:
-            response = requests.get(f"{self.api_base_url}/v1/models")
+            response = requests.get(f"{self.api_base_url}/ping")
             if response.status_code == 200:
                 models = response.json()
                 print(f"연결된 모델: {models}")
