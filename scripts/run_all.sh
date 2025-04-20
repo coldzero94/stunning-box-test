@@ -46,7 +46,7 @@ echo "서버가 완전히 준비될 때까지 기다립니다..."
 echo "모델 로딩 확인 중 (약 7분 소요)..."
 
 # 첫번째 - API 서버가 응답하는지 확인
-MAX_RETRIES=60
+MAX_RETRIES=100
 RETRY_COUNT=0
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
