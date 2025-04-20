@@ -8,29 +8,31 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 echo "스크립트 디렉토리: $SCRIPT_DIR"
 echo "프로젝트 루트: $PROJECT_ROOT"
 
-# 가상환경 활성화
-if [ -f "${PROJECT_ROOT}/venv/bin/activate" ]; then
-    source "${PROJECT_ROOT}/venv/bin/activate"
-    echo "가상환경 활성화됨"
+# 필요한 패키지 설치
+pip install requests sseclient-py gradio
+
+# VLLM 서버 설정
+VLLM_API_URL="http://localhost:8000"
+GRADIO_PORT=7860
+
+# VLLM 서버가 실행 중인지 확인
+echo "VLLM 서버 연결 테스트 중..."
+if curl -s "$VLLM_API_URL/v1/models" > /dev/null; then
+    echo "VLLM 서버가 실행 중입니다: $VLLM_API_URL"
 else
-    echo "가상환경을 찾을 수 없습니다. setup.sh를 먼저 실행해주세요."
-    exit 1
+    echo "경고: VLLM 서버에 연결할 수 없습니다!"
+    echo "VLLM 서버가 실행 중인지 확인하세요."
+    echo "VLLM 서버를 시작하려면 다음 명령어를 실행하세요:"
+    echo "  ./scripts/run_vllm.sh"
+    
+    # 계속 진행할지 확인
+    read -p "VLLM 서버 없이 계속 진행할까요? (y/n): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "종료 중..."
+        exit 1
+    fi
 fi
-
-# 모델 설정
-MODEL_PATH="/qwen25-14b"  # 로컬 모델 경로
-PORT=8000
-MAX_NUM_SEQS=16
-MAX_MODEL_LEN=32767
-DTYPE="bfloat16"  # 또는 "float16", "auto"
-
-# 모델 디렉토리 확인
-if [ ! -d "$MODEL_PATH" ]; then
-    echo "모델 디렉토리를 찾을 수 없습니다: $MODEL_PATH"
-    exit 1
-fi
-
-echo "모델 경로: $MODEL_PATH"
 
 # frontend 디렉토리로 이동
 cd "${PROJECT_ROOT}/frontend"
@@ -39,8 +41,5 @@ echo "현재 디렉토리: $(pwd)"
 # Gradio 실행
 echo "Gradio 시작 중..."
 python app.py \
-    --model-id "$MODEL_PATH" \
-    --port "$PORT" \
-    --max-num-seqs "$MAX_NUM_SEQS" \
-    --max-model-len "$MAX_MODEL_LEN" \
-    --dtype "$DTYPE"
+    --api-base-url "$VLLM_API_URL" \
+    --port "$GRADIO_PORT"
